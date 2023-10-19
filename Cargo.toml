@@ -1,5 +1,5 @@
 [package]
-name = "LABCAT"
+name = "labcat"
 version = "0.1.0"
 edition = "2021"
 
