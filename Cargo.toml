@@ -1,25 +1,27 @@
 [package]
-name = "labcat"
+name = "pikaso_test"
 version = "0.1.0"
 edition = "2021"
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [dependencies]
-anyhow = "1.0.69"
-thiserror = "1.0.38"
-enum_dispatch= "0.3.11"
-rand = "0.8.5"
-ndarray = "0.15.6"
+nalgebra = "0.32.3"
+# ndarray = "0.15.6"
+ndarray = { version = "0.15.6", features = ["rayon", "matrixmultiply-threading", "blas"] }
 ndarray-linalg = "0.16.0"
+# ndarray-linalg = { version = "0.16", features = ["openblas-static"] }
 ndarray-rand = "0.14.0"
-oxidized_l_bfgs_b_c = { path = "oxidized_L_BFGS_B_C" }
-statrs = "0.16.0"
-egobox-doe = "0.11.0"
-sobol = "1.0.2"
-pyo3 = { version="^0.15.0", optional=true }
-numpy = { version="^0.15.0", optional=true }
+nshare = { version = "0.9.0", features = ["nalgebra", "ndarray"] }
+num-traits = "0.2.15"
+simba = "0.8.1"
+egobox-doe = "0.10.1"
+linfa = "0.6.1"
+ord_subset = "3.1.1"
 
 [dev-dependencies] 
-ndarray = { version = "0.15.6", features = ["rayon", "matrixmultiply-threading", "blas"] }
+# ndarray = { version = "0.15.6", features = ["rayon", "matrixmultiply-threading", "blas"] }
+criterion = "0.5.1"
 
 [target.'cfg(windows)'.dev-dependencies]
 ndarray-linalg = { version = "0.16", features = ["intel-mkl-static"] }
@@ -27,20 +29,10 @@ ndarray-linalg = { version = "0.16", features = ["intel-mkl-static"] }
 [target.'cfg(unix)'.dev-dependencies]
 ndarray-linalg = { version = "0.16", features = ["openblas-static"] }
 
-
 [lib]
-name = "algpa_lib"
+name = "pikaso_lib"
 path = "./src/lib.rs"
 
-[[example]]
-name = "gp"
-
-[profile.release]
-lto = true
-
-[features]
-default = ["f64", "LHS", "PCA"]
-f64 = [] # TODO: GET F32 WORKING
-python = ["dep:pyo3", "dep:numpy"]
-LHS = []
-PCA = []
+[[bench]]
+name = "bench"
+harness = false

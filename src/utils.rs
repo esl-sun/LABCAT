@@ -1,369 +1,280 @@
-use ndarray::{
-    s, Array1, Array2, Array3, Array4, ArrayBase, ArrayView1, ArrayView2, Axis, DataMut, Dimension,
-    NewAxis,
-};
-use ndarray_linalg::{Scalar, UPLO};
+use nalgebra::Scalar;
+use nalgebra::{DMatrix, DMatrixView, DVector, Dyn};
+use ndarray::{Array1, Array2, ArrayView1, ArrayView2, ShapeBuilder};
 
-use crate::f_;
+//////////////////////////
 
-pub trait ArrayBaseUtils<A, D>
+#[derive(Debug, Clone)]
+pub struct Vector<T>
 where
-    D: Dimension,
+    T: Scalar,
 {
-    fn apply(self, func: fn(A) -> A) -> Self;
-    fn apply_mut(&mut self, func: fn(A) -> A);
-    fn ln(self) -> Self;
-    fn exp(self) -> Self;
+    data: Vec<T>,
 }
 
-/// # Methods For All Array Types
-impl<A, S, D> ArrayBaseUtils<A, D> for ArrayBase<S, D>
+// impl<T> AsRef<T> for Vector<T>
+// where
+//     T: ?Sized + Scalar,
+//     <Vector<T> as Deref>::Target: AsRef<T>,
+// {
+//     fn as_ref(&self) -> &T {
+//         self.deref().as_ref()
+//     }
+// }
+
+// impl<T> Deref for Vector<T>
+// where
+//     T: Scalar
+// {
+//     type Target = Vec<T>;
+
+//     fn deref(&self) -> &Self::Target {
+//         &self.data
+//     }
+// }
+
+//////////////////////////
+impl<T> From<Vector<T>> for Vec<T>
 where
-    A: Scalar + Send + Sync,
-    S: DataMut<Elem = A>,
-    D: Dimension,
+    T: Scalar,
 {
-    fn apply(mut self, func: fn(A) -> A) -> Self {
-        self.par_mapv_inplace(func);
-        self
-    }
-
-    fn apply_mut(&mut self, func: fn(A) -> A) {
-        self.par_mapv_inplace(func);
-    }
-
-    fn ln(self) -> Self {
-        self.apply(|A| A.ln())
-    }
-
-    fn exp(self) -> Self {
-        self.apply(|A| A.exp())
+    fn from(value: Vector<T>) -> Self {
+        value.data
     }
 }
 
-pub trait ArrayBaseFloatUtils<D>
+impl<T> From<Vec<T>> for Vector<T>
 where
-    D: Dimension,
+    T: Scalar,
 {
-    fn max(&self) -> Option<&f_>;
-    fn min(&self) -> Option<&f_>;
-    fn indexed_max(&self) -> Option<(D::Pattern, &f_)>;
-    fn indexed_min(&self) -> Option<(D::Pattern, &f_)>;
+    fn from(value: Vec<T>) -> Self {
+        Vector { data: value }
+    }
 }
 
-impl<S, D> ArrayBaseFloatUtils<D> for ArrayBase<S, D>
+//////////////////////////
+impl<T> From<Vector<T>> for Array1<T>
 where
-    S: DataMut<Elem = f_>,
-    D: Dimension,
+    T: Scalar,
 {
-    #[inline(always)]
-    fn max(&self) -> Option<&f_> {
-        let max = self.into_iter().max_by(|x, y| x.total_cmp(y));
+    fn from(value: Vector<T>) -> Self {
+        Array1::from_vec(value.into())
+    }
+}
 
-        if let Some(max) = max {
-            if max.is_infinite() || max.is_nan() {
-                return None;
+impl<T> From<Array1<T>> for Vector<T>
+where
+    T: Scalar,
+{
+    fn from(value: Array1<T>) -> Self {
+        Vector {
+            data: value.into_raw_vec(),
+        }
+    }
+}
+
+//////////////////////////
+impl<T> From<Vector<T>> for DVector<T>
+where
+    T: Scalar,
+{
+    fn from(value: Vector<T>) -> Self {
+        DVector::from_vec(value.into())
+    }
+}
+
+impl<T> From<DVector<T>> for Vector<T>
+where
+    T: Scalar,
+{
+    fn from(value: DVector<T>) -> Self {
+        Vector {
+            data: value.data.into(),
+        }
+    }
+}
+
+///////////////////////////////
+
+#[derive(Debug, Clone)]
+pub struct VectorView<'a, T>
+where
+    T: Scalar,
+{
+    view: ArrayView1<'a, T>,
+}
+
+impl<'a, T> From<&'a Vec<T>> for VectorView<'a, T>
+where
+    T: Scalar,
+{
+    fn from(value: &'a Vec<T>) -> Self {
+        unsafe {
+            VectorView {
+                view: ArrayView1::from_shape_ptr((value.len(),), value.as_ptr()),
             }
         }
-        max
     }
+}
 
-    #[inline(always)]
-    fn min(&self) -> Option<&f_> {
-        let min = self.into_iter().min_by(|x, y| x.total_cmp(y));
+// impl<'a, T> From<VectorView<'a, T>> for &'a Vec<T>
+// where
+//     T: Scalar,
+// {
+//     fn from(value: VectorView<'a, T>) -> Self {
+//         unsafe { value.view.as_slice().unwrap().into() }
+//     }
+// }
 
-        if let Some(min) = min {
-            if min.is_infinite() || min.is_nan() {
-                return None;
+impl<'a, T> From<ArrayView1<'a, T>> for VectorView<'a, T>
+where
+    T: Scalar,
+{
+    fn from(value: ArrayView1<'a, T>) -> Self {
+        VectorView { view: value }
+    }
+}
+
+impl<'a, T> From<VectorView<'a, T>> for ArrayView1<'a, T>
+where
+    T: Scalar,
+{
+    fn from(value: VectorView<'a, T>) -> Self {
+        value.view
+    }
+}
+
+///////////////////////////////
+
+#[derive(Debug, Clone)]
+pub struct Matrix<T>
+where
+    T: Scalar,
+{
+    data: Array2<T>,
+}
+
+///////////////////////////////
+
+impl<T> From<Matrix<T>> for Array2<T>
+where
+    T: Scalar,
+{
+    fn from(value: Matrix<T>) -> Self {
+        value.data
+    }
+}
+
+impl<T> From<Array2<T>> for Matrix<T>
+where
+    T: Scalar,
+{
+    fn from(value: Array2<T>) -> Self {
+        Matrix { data: value }
+    }
+}
+
+////////////////////////////////
+
+impl<T> From<Matrix<T>> for DMatrix<T>
+where
+    T: Scalar,
+{
+    fn from(value: Matrix<T>) -> Self {
+        let std_layout = value.data.is_standard_layout();
+        let nrows = Dyn(value.data.nrows());
+        let ncols = Dyn(value.data.ncols());
+        let mut res = DMatrix::from_vec_generic(nrows, ncols, value.data.into_raw_vec());
+        if std_layout {
+            // This can be expensive, but we have no choice since nalgebra VecStorage is always
+            // column-based.
+            res.transpose_mut();
+        }
+        res
+    }
+}
+
+impl<T> From<DMatrix<T>> for Matrix<T>
+where
+    T: Scalar,
+{
+    fn from(value: DMatrix<T>) -> Self {
+        unsafe {
+            Matrix {
+                data: Array2::from_shape_vec_unchecked(
+                    value.shape().strides(value.strides()),
+                    value.data.into(),
+                ),
             }
         }
-        min
     }
+}
 
-    #[inline(always)]
-    fn indexed_max(&self) -> Option<(D::Pattern, &f_)> {
-        let max = self.indexed_iter().max_by(|(_, x), (_, y)| x.total_cmp(y));
+//////////////////////////////////////
 
-        if let Some((_, max)) = max {
-            if max.is_infinite() || max.is_nan() {
-                return None;
-            }
+#[derive(Debug, Clone)]
+pub struct MatrixView<'a, T>
+where
+    T: Scalar,
+{
+    view: ArrayView2<'a, T>,
+}
+
+//////////////////////////////////////
+
+impl<'a, T> From<ArrayView2<'a, T>> for MatrixView<'a, T>
+where
+    T: Scalar,
+{
+    fn from(value: ArrayView2<'a, T>) -> Self {
+        MatrixView { view: value }
+    }
+}
+
+impl<'a, T> From<MatrixView<'a, T>> for ArrayView2<'a, T>
+where
+    T: Scalar,
+{
+    fn from(value: MatrixView<'a, T>) -> Self {
+        value.view
+    }
+}
+
+//////////////////////////////////////
+
+impl<'a, T> From<DMatrixView<'a, T, Dyn, Dyn>> for MatrixView<'a, T>
+where
+    T: Scalar,
+{
+    fn from(value: DMatrixView<'a, T, Dyn, Dyn>) -> Self {
+        unsafe {
+            let view =
+                ArrayView2::from_shape_ptr(value.shape().strides(value.strides()), value.as_ptr());
+
+            MatrixView { view }
         }
-        max
-    }
-
-    #[inline(always)]
-    fn indexed_min(&self) -> Option<(D::Pattern, &f_)> {
-        let min = self.indexed_iter().min_by(|(_, x), (_, y)| x.total_cmp(y));
-
-        if let Some((_, min)) = min {
-            if min.is_infinite() || min.is_nan() {
-                return None;
-            }
-        }
-        min
     }
 }
 
-pub trait Array1Utils {
-    fn into_col(self) -> Array2<f_>;
-    fn rem_at_index(self, indices: Vec<usize>) -> Array1<f_>;
-}
-
-impl Array1Utils for Array1<f_> {
-    #[inline(always)]
-    fn into_col(self) -> Array2<f_> {
-        let len = self.len();
-        self.into_shape((len, 1)).expect("Should never fail")
-    }
-
-    #[inline(always)]
-    fn rem_at_index(mut self, mut indices: Vec<usize>) -> Array1<f_> {
-        indices.sort(); //order so that method works
-        indices.dedup(); //remove duplicates
-
-        indices.iter().enumerate().for_each(|(offset, rem_index)| {
-            self.remove_index(Axis(0), rem_index.saturating_sub(offset))
-        });
-
-        self
-    }
-}
-
-pub trait ArrayView1Utils {
-    fn into_col(&self) -> ArrayView2<f_>;
-}
-
-impl ArrayView1Utils for ArrayView1<'_, f_> {
-    #[inline(always)]
-    fn into_col(&self) -> ArrayView2<f_> {
-        self.slice(s![.., NewAxis])
-    }
-}
-
-pub trait Array2Utils {
-    fn scaled_add_Array1(self, alpha: f_, rhs: &Array1<f_>, axis: Axis) -> Array2<f_>;
-    fn sub_column(self, rhs: &Array1<f_>) -> Array2<f_>;
-    fn add_column(self, rhs: &Array1<f_>) -> Array2<f_>;
-
-    fn scaled_add_ArrayView1(self, alpha: f_, rhs: &ArrayView1<f_>, axis: Axis) -> Array2<f_>;
-    fn sub_column_view(self, rhs: &ArrayView1<f_>) -> Array2<f_>;
-    fn add_column_view(self, rhs: &ArrayView1<f_>) -> Array2<f_>;
-
-    fn scale_Array1(self, rhs: &Array1<f_>, axis: Axis) -> Array2<f_>;
-    fn mul_column(self, rhs: &Array1<f_>) -> Array2<f_>;
-    fn mul_row(self, rhs: &Array1<f_>) -> Array2<f_>;
-
-    fn product_trace(&self, rhs: &Array2<f_>) -> f_;
-    fn fill_with_UPLO(self, uplo: UPLO) -> Self;
-    // fn map_UPLO(self, uplo: UPLO, f: fn((usize, usize)) -> f_) -> Self;
-    fn map_UPLO<F>(self, uplo: UPLO, f: F) -> Self
-    where
-        F: FnMut((usize, usize)) -> f_;
-    // fn par_map_UPLO(self, uplo: UPLO, func: fn((usize, usize)) -> f_);
-
-    fn rem_subview_at_index(self, indices: Vec<usize>, axis: Axis) -> Array2<f_>;
-    fn rem_rows(self, indices: Vec<usize>) -> Array2<f_>;
-    fn rem_cols(self, indices: Vec<usize>) -> Array2<f_>;
-}
-
-impl Array2Utils for Array2<f_> {
-    #[inline(always)]
-    fn scaled_add_Array1(mut self, alpha: f_, rhs: &Array1<f_>, axis: Axis) -> Array2<f_> {
-        self.axis_iter_mut(axis)
-            .for_each(|mut a| a.scaled_add(alpha, rhs));
-        self
-    }
-
-    #[inline(always)]
-    fn sub_column(self, rhs: &Array1<f_>) -> Array2<f_> {
-        self.scaled_add_Array1(-1.0, rhs, Axis(1))
-    }
-
-    #[inline(always)]
-    fn add_column(self, rhs: &Array1<f_>) -> Array2<f_> {
-        self.scaled_add_Array1(1.0, rhs, Axis(1))
-    }
-
-    #[inline(always)]
-    fn scaled_add_ArrayView1(mut self, alpha: f_, rhs: &ArrayView1<f_>, axis: Axis) -> Array2<f_> {
-        self.axis_iter_mut(axis)
-            .for_each(|mut a| a.scaled_add(alpha, rhs));
-        self
-    }
-
-    #[inline(always)]
-    fn sub_column_view(self, rhs: &ArrayView1<f_>) -> Array2<f_> {
-        self.scaled_add_ArrayView1(-1.0, rhs, Axis(1))
-    }
-
-    #[inline(always)]
-    fn add_column_view(self, rhs: &ArrayView1<f_>) -> Array2<f_> {
-        self.scaled_add_ArrayView1(1.0, rhs, Axis(1))
-    }
-
-    #[inline(always)]
-    fn scale_Array1(mut self, rhs: &Array1<f_>, axis: Axis) -> Array2<f_> {
-        self.axis_iter_mut(axis).for_each(|mut a| a *= rhs);
-        self
-    }
-
-    #[inline(always)]
-    fn mul_column(self, rhs: &Array1<f_>) -> Array2<f_> {
-        self.scale_Array1(rhs, Axis(1))
-    }
-
-    #[inline(always)]
-    fn mul_row(self, rhs: &Array1<f_>) -> Array2<f_> {
-        self.scale_Array1(rhs, Axis(0))
-    }
-
-    #[inline(always)]
-    fn product_trace(&self, rhs: &Array2<f_>) -> f_ {
-        self.columns()
-            .into_iter()
-            .zip(rhs.rows().into_iter())
-            .map(|(col, row)| col.dot(&row))
-            .sum()
-    }
-
-    #[inline(always)]
-    fn fill_with_UPLO(mut self, uplo: UPLO) -> Self {
-        if !self.is_square() {
-            panic!("Matrix is not square!")
+impl<'a, T> From<MatrixView<'a, T>> for DMatrixView<'a, T, Dyn, Dyn>
+where
+    T: Scalar,
+{
+    fn from(value: MatrixView<'a, T>) -> Self {
+        let nrows = Dyn(value.view.nrows());
+        let ncols = Dyn(value.view.ncols());
+        let ptr = value.view.as_ptr();
+        let stride_row: usize =
+            TryFrom::try_from(value.view.strides()[0]).expect("Negative row stride");
+        let stride_col: usize =
+            TryFrom::try_from(value.view.strides()[1]).expect("Negative column stride");
+        let storage = unsafe {
+            nalgebra::ViewStorage::from_raw_parts(
+                ptr,
+                (nrows, ncols),
+                (Dyn(stride_row), Dyn(stride_col)),
+            )
         };
-
-        let dim = self.shape()[0];
-
-        for i in 0..dim {
-            for j in 0..i {
-                match uplo {
-                    UPLO::Upper => self[(i, j)] = self[(j, i)],
-                    UPLO::Lower => self[(j, i)] = self[(i, j)],
-                }
-            }
-        }
-
-        self
-    }
-
-    fn map_UPLO<F>(mut self, uplo: UPLO, mut f: F) -> Self
-    where
-        F: FnMut((usize, usize)) -> f_,
-    {
-        if !self.is_square() {
-            panic!("Matrix is not square!")
-        };
-
-        let dim = self.shape()[0];
-
-        for i in 0..dim {
-            for j in 0..=i {
-                match uplo {
-                    UPLO::Upper => self[(j, i)] = f((j, i)),
-                    UPLO::Lower => self[(i, j)] = f((i, j)),
-                }
-            }
-        }
-
-        self
-    }
-
-    // fn par_map_UPLO(mut self, uplo: UPLO, func: fn((usize, usize)) -> f_) {
-    //     if !self.is_square() {
-    //         panic!("Matrix is not square!")
-    //     };
-
-    //     let (i, _) = self.dim();
-
-    //     (0..i).combinations_with_replacement(2)
-    //         .into_iter()
-    //         .par_bridge()
-    //         .map(|v| {
-    //             self[(i, 0)] = func((i, 0));
-    //             match uplo {
-    //                 UPLO::Upper => {let i = v[0]; let j = v[1]; self[(i, j)] = func((i, j))},
-    //                 UPLO::Lower => {let i = v[1]; let j = v[0]; self[(i, j)] = func((i, j));},
-    //             };
-
-    //         });
-    // }
-
-    #[inline(always)]
-    fn rem_subview_at_index(self, mut indices: Vec<usize>, axis: Axis) -> Array2<f_> {
-        indices.sort(); //order so that method works
-        indices.dedup(); //remove duplicates
-
-        match axis {
-            Axis(i) if i == 0 => indices.retain(|i| *i < self.nrows()),
-            Axis(i) if i == 1 => indices.retain(|i| *i < self.ncols()),
-            _ => panic!("Invalid Axis index!"),
-        };
-
-        let sh = match axis {
-            Axis(i) if i == 0 => (self.nrows() - indices.len(), self.ncols()),
-            Axis(i) if i == 1 => (self.nrows(), self.ncols() - indices.len()),
-            _ => panic!("Invalid Axis index!"),
-        };
-
-        let red_vec: Vec<f_> = match axis {
-            Axis(i) if i == 0 => self
-                .indexed_iter()
-                .filter(|((i, _), _)| !indices.contains(i))
-                .map(|((_, _), val)| *val)
-                .collect(),
-            Axis(i) if i == 1 => self
-                .indexed_iter()
-                .filter(|((_, j), _)| !indices.contains(j))
-                .map(|((_, _), val)| *val)
-                .collect(),
-            _ => panic!("Invalid Axis index!"),
-        };
-
-        Array2::from_shape_vec(sh, red_vec).expect("Should never fail.")
-    }
-
-    #[inline(always)]
-    fn rem_rows(self, indices: Vec<usize>) -> Array2<f_> {
-        self.rem_subview_at_index(indices, Axis(0))
-    }
-
-    #[inline(always)]
-    fn rem_cols(self, indices: Vec<usize>) -> Array2<f_> {
-        self.rem_subview_at_index(indices, Axis(1))
-    }
-}
-
-pub trait ArrayView2Utils {
-    fn product_trace(&self, rhs: &ArrayView2<f_>) -> f_;
-}
-
-impl ArrayView2Utils for ArrayView2<'_, f_> {
-    fn product_trace(&self, rhs: &ArrayView2<f_>) -> f_ {
-        self.columns()
-            .into_iter()
-            .zip(rhs.rows().into_iter())
-            .map(|(col, row)| col.dot(&row))
-            .sum()
-    }
-}
-
-pub trait Array3Utils {
-    fn outer(&self, index: usize) -> ArrayView2<'_, f_>;
-}
-
-impl Array3Utils for Array3<f_> {
-    fn outer(&self, index: usize) -> ArrayView2<'_, f_> {
-        self.slice(s![index, .., ..])
-    }
-}
-
-pub trait Array4Utils {
-    fn outer(&self, row: usize, col: usize) -> ArrayView2<'_, f_>;
-}
-
-impl Array4Utils for Array4<f_> {
-    fn outer(&self, row: usize, col: usize) -> ArrayView2<'_, f_> {
-        self.slice(s![row, col, .., ..])
+        nalgebra::Matrix::from_data(storage)
     }
 }
