@@ -1,109 +1,132 @@
 //#![feature(type_alias_impl_trait)]
-#![feature(return_position_impl_trait_in_trait)]
-// #![feature(trait_alias)]
-// #![feature(anonymous_lifetime_in_impl_trait)]
-//#![feature(associated_type_bounds)]
+#![feature(trait_alias)]
+#![feature(min_specialization)]
+// #![feature(associated_type_bounds)]
 //Fallible
 // #![feature(try_trait_v2)]
 // #![feature(const_trait_impl)]
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
 
-use memory::ObservationMemory;
-use nalgebra::Scalar;
-use std::{marker::PhantomData, error::Error};
+use faer_core::{ComplexField, IdentityGroup, Mat};
+use memory::ObservationIO;
+use num_traits::real::Real;
+use std::marker::PhantomData;
 
-pub mod kernel;
-pub mod memory;
-pub mod ndarray_utils;
-pub mod utils;
-
+pub mod bounds;
+pub mod doe;
 pub mod ei;
+pub mod gaussian;
 pub mod gp;
 pub mod kde;
+pub mod kernel;
 pub mod lhs;
+pub mod memory;
+pub mod ndarray_utils;
 pub mod sqexp;
+pub mod tpe;
+pub mod uniform;
+pub mod utils;
 
+use bounds::Bounds;
+use doe::DoE;
 use ei::AcqFunction;
-use lhs::DoE;
-use utils::{Matrix, Vector};
 
-// pub trait Input<T: Scalar> = Into<Vector<T>>;
-// trait Input<T: Scalar> {}
+pub trait dtype: ComplexField<Unit = Self, Group = IdentityGroup> + Real  {}
 
-pub trait Surrogate<T>: Default
+impl<T> dtype for T 
 where
-    T: Scalar,
+    T: ComplexField<Unit = Self, Group = IdentityGroup> + Real
+{}
+
+pub trait Surrogate<T>
+where
+    T: dtype,
 {
-    fn fit<E>(&mut self, X: Matrix<T>, Y: Vector<T>) -> Result<(), E>;
-    fn probe(&self, x: &Vector<T>) -> T;
+    fn refit<E>(&mut self, X: Mat<T>, Y: &[T]) -> Result<(), E>;
+    fn probe(&self, x: &[T]) -> T;
     // fn bounds(&self) -> Vec<>
+}
+
+pub trait SurrogateMemory<T>: Surrogate<T>
+where
+    T: dtype,
+{
+    fn memory(&self) -> &impl ObservationIO<T>;
+    fn memory_mut(&mut self) -> &mut impl ObservationIO<T>;
 }
 
 pub trait BayesianSurrogate<T>: Surrogate<T>
 where
-    T: Scalar,
+    T: dtype,
 {
-    fn probe_variance(&self, x: &Vector<T>) -> T;
+    fn probe_variance(&self, x: &[T]) -> T;
     // fn bounds(&self) -> Vec<>
 }
 
 pub trait AskTell<T>
 where
-    T: Scalar,
+    T: dtype,
 {
-    fn ask(&mut self) -> impl Into<Vector<T>>;
-    fn tell(&mut self, x: Vector<T>, y: T);
+    fn ask(&mut self) -> Vec<T>;
+    fn tell(&mut self, x: &[T], y: &T);
 }
 
 #[derive(Debug, Clone)]
-pub struct SMBO<T, D, M, S, A>
+pub struct SMBO<T, B, D, M, S, A>
 where
-    T: Scalar,
+    T: dtype,
+    B: Bounds<T>,
     D: DoE<T>,
-    M: ObservationMemory<T>,
+    M: ObservationIO<T>,
     S: Surrogate<T>,
     A: AcqFunction<T>,
 {
     data_type: PhantomData<T>,
+    bounds: B,
     doe: D,
     mem: M,
     acq_func: A,
     surrogate: S,
 }
 
-impl<T, D, M, S, A> SMBO<T, D, M, S, A>
+impl<T, B, D, M, S, A> SMBO<T, B, D, M, S, A>
 where
-    // Self: AskTell<T>,
-    T: Scalar,
+    T: dtype,
+    B: Bounds<T>,
     D: DoE<T>,
     S: Surrogate<T>,
-    M: ObservationMemory<T>,
+    M: ObservationIO<T>,
     A: AcqFunction<T>,
 {
-    pub fn new() -> SMBO<T, D, M, S, A> {
+    pub fn new() -> SMBO<T, B, D, M, S, A> {
         todo!()
     }
 
-    fn optimize(mut self) {
+    fn optimize(self) {
         // let doe = self.doe.build_DoE();
     }
 
-    fn test(mut self) {
+    fn test(self) {
         // let x: Vector<T> = self.surrogate.ask().into();
         // self.surrogate.tell(x, T);
     }
 }
 
-// impl<T, S, A> AskTell<T> for SMBO<T, S, A>
-// where
-//     T: Scalar,
-//     S: Surrogate<T>,
-//     A: AcqFunction,
-// {
-//     fn ask(&mut self) -> impl Input<T> {
-//         todo!()
-//     }
+impl<T, B, D, M, S, A> AskTell<T> for SMBO<T, B, D, M, S, A>
+where
+    T: dtype,
+    B: Bounds<T>,
+    D: DoE<T>,
+    S: Surrogate<T>,
+    M: ObservationIO<T>,
+    A: AcqFunction<T>,
+{
+    fn ask(&mut self) -> Vec<T> {
+        todo!()
+    }
 
-//     fn tell(&mut self, x: impl Input<T>, y: T) {
-//         todo!()
-//     }
-// }
+    fn tell(&mut self, x: &[T], y: &T) {
+        todo!()
+    }
+}

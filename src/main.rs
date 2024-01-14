@@ -1,72 +1,76 @@
-use nalgebra::{DMatrix, DMatrixView, DVector, Dyn, Vector3};
-use ndarray::{Array1, Array2, ArrayView2};
-use pikaso_lib::fallible::{Fallible, Fallible::{Fail, Success}};
-use pikaso_lib::kernel::Kernel;
-use pikaso_lib::lhs::{DoE, RandomSampling};
-use pikaso_lib::memory::{BaseMemory, ObservationMemory};
-use pikaso_lib::ndarray_utils::{Array2Utils, ArrayBaseUtils, ArrayView2Utils};
-use pikaso_lib::utils::{Matrix, MatrixView};
-use pikaso_lib::{ei::EI, gp::GP, lhs::LHS, sqexp::SqExpARD, utils::Vector, SMBO};
+use faer::{mat, Mat};
+use faer_core::zip::ViewMut;
+use faer_core::{Col, Row};
+use labcat::kernel::{Kernel, KernelSum};
+use labcat::lhs::LHS;
+use labcat::memory::{BaseMemory, ObservationIO};
+use labcat::{ei::EI, gp::GP, kde::KDE, sqexp::SqExpARD, SMBO};
+use ndarray::s;
+// use faer_core::ColIndex;
+// use faer_core::Mat;
 
-// use pikaso_lib::ToVector;
+// use labcat::ToVector;
+use labcat::utils::{MatMutUtils, MatRefUtils, MatUtils};
 
 fn main() {
-    let i = 3_f32.exp();
-    dbg!(i);
-    let i = 3_f32.exp() as i32;
-    dbg!(i);
-    // let v = DVector::from_vec(vec![0.0, 1.0, 2.0]);
-    // let v = Vector3::from_vec(vec![0.0, 1.0, 2.0]);
-    // dbg!(v.shape());
-    // dbg!(v);
-
-    // let v = Array1::from_vec(vec![6.0, 7.0, 8.0]);
-    // dbg!(v.into_vec_test());
-    // println!("Hello, world!");
-    // let mut a = ndarray::arr2(&[[0.0_f32, 1.0], [5.0, 10.0] , [-5.0, -10.0]]);
-    let mut a = Array2::<f32>::eye(5);
-    // a.view_mut().remove_index(axis, index);
-    dbg!(a.indexed_max());
-    let x: MatrixView<f32> = a.view().into();
-    // test(x.into());
-    // let view = a.view();
-    // dbg!(a);
-    // dbg!(view.product_trace(a.view()));
-
-    // let v: Vector<f64> = vec![0.0, 1.0, 2.0].into();
-    // let r: &Vec<f64> = &v;
-
-    // let gp = GP::<f64, SqExpARD<f64>>::new();
-    // let lhs = LHS::default();
-    // dbg!(lhs.build_DoE(10, a.clone().into()).into());
-
-    // let rand = RandomSampling::default();
-    // dbg!(rand.build_DoE(10, a.into()).into());
-
     let kern = SqExpARD::<f32>::new(5);
+    let kern2 = SqExpARD::<f32>::new(5);
+    let kern3 = SqExpARD::<f32>::new(5);
+    let sum = kern.sum(kern2);
+    let sum2 = sum.sum(kern3);
+
+    let kde = KDE::<f32, KernelSum<f32, SqExpARD<f32>, SqExpARD<f32>>>::new(5);
+    dbg!(kde);
 
     let mem = BaseMemory::<f64>::default();
+    dbg!(mem);
+    let mem = BaseMemory::<f64>::new(5);
+    dbg!(mem);
 
-    let X = mem.X().into();
-    dbg!(test(X.into()));
+    let mut i = Mat::<f64>::identity(2, 3);
+    let mut j = Mat::<f64>::identity(3, 2);
+    // let k = i * j;
+    // i.resize_with(new_nrows, new_ncols, f);
+    // dbg!(&i);
+    let mut v = i.as_mut();
+    // dbg!(v.subcols(1, 2).get(1, 0));
+    // v.subcols(0, 2);
+    // v.zip_apply_with_row_slice();
+    // v.fill_fn();
+    v.zip_apply_with_row_slice(&[10.0, 100.0, 1000.0], |old, new| old + new);
+    dbg!(&i.as_ref().col_as_slice(1));
 
-    let smbo = SMBO::<
-        f64,
-        LHS<f64>,
-        BaseMemory<f64>,
-        GP<f64, SqExpARD<f64>>,
-        EI<'_, f64, GP<f64, SqExpARD<f64>>>,
-    >::new();
-}
+    for item in i.indexed_iter() {
+        dbg!(item);
+    }
+    let mut mu = i.get_mut(0, 0..i.ncols());
 
-fn test(a: DMatrix<f64>) -> Fallible<f64>{
-    dbg!("1");
-    test_fallible()?;
-    dbg!("2");
-    Success
-}
+    mu.fill(2.0);
 
-fn test_fallible() -> Fallible<f64> {
-    // Fail(42.0)
-    Success
+    dbg!(i.col_capacity());
+    dbg!(i);
+    let c = Col::<f64>::zeros(5);
+    let r = Row::<f64>::zeros(6);
+
+    dbg!(c);
+    dbg!(&r);
+
+    let r2 = r.clone();
+    dbg!(r2);
+
+    let a = ndarray::Array2::<f64>::eye(4);
+
+    let s = &[0.0, 1.0, 2.0];
+    // dbg!(s.faer_add(&[10.0, 100.0, 1000.0]));
+
+    // let X = mem.X().into();
+    // dbg!(test(X.into()));
+
+    // let smbo = SMBO::<
+    //     f64,
+    //     LHS<f64>,
+    //     BaseMemory<f64>,
+    //     GP<f64, SqExpARD<f64>>,
+    //     EI<'_, f64, GP<f64, SqExpARD<f64>>>,
+    // >::new();
 }

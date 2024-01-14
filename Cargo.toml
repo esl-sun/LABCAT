@@ -1,15 +1,16 @@
 [package]
-name = "pikaso_test"
+name = "labcat"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nalgebra = "0.32.3"
+# nalgebra = "0.32.3"
 # ndarray = "0.15.6"
 ndarray = { version = "0.15.6", features = ["rayon", "matrixmultiply-threading", "blas"] }
-ndarray-linalg = "0.16.0"
+# ndarray-linalg = "0.16.0"
+ndarray-linalg = { version = "0.16", features = ["intel-mkl-static"] }
 # ndarray-linalg = { version = "0.16", features = ["openblas-static"] }
 ndarray-rand = "0.14.0"
 nshare = { version = "0.9.0", features = ["nalgebra", "ndarray"] }
@@ -18,6 +19,11 @@ simba = "0.8.1"
 egobox-doe = "0.10.1"
 linfa = "0.6.1"
 ord_subset = "3.1.1"
+# faer = { version = "0.16.0", features = ["nalgebra", "ndarray", "nightly"] }
+faer = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-clone-debug-impls", features = ["nalgebra", "ndarray", "nightly"]}
+faer-core = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-clone-debug-impls"}
+# faer-core = "0.16.0"
+# log = "0.4.20"
 
 [dev-dependencies] 
 # ndarray = { version = "0.15.6", features = ["rayon", "matrixmultiply-threading", "blas"] }
@@ -30,7 +36,7 @@ ndarray-linalg = { version = "0.16", features = ["intel-mkl-static"] }
 ndarray-linalg = { version = "0.16", features = ["openblas-static"] }
 
 [lib]
-name = "pikaso_lib"
+name = "labcat"
 path = "./src/lib.rs"
 
 [[bench]]

@@ -1,19 +1,17 @@
 use std::marker::PhantomData;
 
-use nalgebra::Scalar;
-
-use crate::{BayesianSurrogate, Surrogate};
+use crate::{dtype, BayesianSurrogate, Surrogate};
 
 pub trait AcqFunction<T>
 where
-    T: Scalar,
+    T: dtype,
 {
-    fn probe_acq(&self, x: crate::utils::Vector<T>) -> T;
+    fn probe_acq(&self, x: &[T]) -> T;
 }
 
 pub struct EI<'a, T, S>
 where
-    T: Scalar,
+    T: dtype,
     S: Surrogate<T> + BayesianSurrogate<T>,
 {
     data_type: PhantomData<T>,
@@ -22,10 +20,10 @@ where
 
 impl<T, S> AcqFunction<T> for EI<'_, T, S>
 where
-    T: Scalar,
+    T: dtype,
     S: Surrogate<T> + BayesianSurrogate<T>,
 {
-    fn probe_acq(&self, x: crate::utils::Vector<T>) -> T {
+    fn probe_acq(&self, x: &[T]) -> T {
         let mean = self.surrogate.probe(&x);
         let var = self.surrogate.probe_variance(&x);
         todo!()

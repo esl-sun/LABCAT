@@ -2,17 +2,33 @@
 
 use std::{iter::Sum, ops::Neg};
 
-// use itertools::Itertools;
-// use rayon::prelude::*;
+use faer::IntoNdarray;
+use faer_core::{Entity, Mat, SimpleEntity};
 use ndarray::{
     s, Array1, Array2, ArrayBase, ArrayView1, ArrayView2, Axis, DataMut, DataOwned, Dimension,
-    LinalgScalar, NdFloat,
+    LinalgScalar,
 };
-// use ndarray_linalg::{Scalar, UPLO};
-use nalgebra::Scalar;
-use ndarray_linalg::UPLO;
-use num_traits::{real::Real, Float};
+use ndarray_linalg::{Scalar, UPLO};
+use num_traits::real::Real;
 use ord_subset::{OrdSubset, OrdSubsetIterExt};
+
+pub trait IntoOwnedNdarray {
+    type Ndarray;
+    #[track_caller]
+    fn into_ndarray(self) -> Self::Ndarray;
+}
+
+impl<T> IntoOwnedNdarray for Mat<T>
+where
+    T: Entity + SimpleEntity,
+{
+    type Ndarray = Array2<T>;
+
+    #[track_caller]
+    fn into_ndarray(self) -> Self::Ndarray {
+        self.as_ref().into_ndarray().into_owned()
+    }
+}
 
 pub trait ArrayBaseUtils<D, T, S>
 where
@@ -55,7 +71,7 @@ where
     where
         T: Real,
     {
-        self.mapv_inplace(|A| A.ln());
+        self.mapv_inplace(|A| Real::ln(A));
         self
     }
 
@@ -64,7 +80,7 @@ where
     where
         T: Real,
     {
-        self.mapv_inplace(|A| A.exp());
+        self.mapv_inplace(|A| Real::exp(A));
         self
     }
 
@@ -389,7 +405,6 @@ where
     where
         T: LinalgScalar + std::iter::Sum,
     {
-        dbg!("HERE");
         self.columns()
             .into_iter()
             .zip(rhs.rows().into_iter())
