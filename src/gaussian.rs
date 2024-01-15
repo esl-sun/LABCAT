@@ -6,7 +6,7 @@ use simba::scalar::RealField;
 
 use crate::{
     dtype,
-    kernel::{Bandwidth, Kernel, ARD, PDF},
+    kernel::{Bandwidth, Kernel, PDF},
 };
 
 #[derive(Clone, Debug)]

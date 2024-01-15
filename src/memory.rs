@@ -53,18 +53,17 @@ where
     ///
     /// [arithmetic mean]: https://en.wikipedia.org/wiki/Arithmetic_mean
     fn Y_mean(&self) -> Option<T> {
-        
         let n = self.Y().len();
         if n == 0 {
             None
         } else {
-            let n = T::from_usize(n)
-                .expect("Converting number of elements to `T` must not fail.");
+            let n = T::from_usize(n).expect("Converting number of elements to `T` must not fail.");
             Some(
                 self.Y()
-                .iter()
-                .fold(T::zero(), |acc, elem| T::add(acc, *elem))/ n
-                )
+                    .iter()
+                    .fold(T::zero(), |acc, elem| T::add(acc, *elem))
+                    / n,
+            )
         }
     }
 
@@ -75,7 +74,7 @@ where
                 .iter()
                 .fold(T::zero(), |acc, elem| T::add(acc, *elem))
                 / T::from_usize(self.n())
-                .expect("Converting number of elements to `T` must not fail.")
+                    .expect("Converting number of elements to `T` must not fail.")
         })
     }
 }
@@ -251,7 +250,6 @@ where
     }
 
     fn max_quantile(&self, gamma: &T) -> (Mat<T>, Mat<T>) {
-        
         #[cfg(debug_assertions)]
         if *gamma < T::zero() || *gamma > T::one() {
             panic!(
@@ -259,14 +257,15 @@ where
                 gamma
             );
         }
-        
+
         let n_upper = T::from_usize(self.n())
-        .expect("Converting number of elements to `T` must not fail.").mul(*gamma).round().to_usize(); 
-        
+            .expect("Converting number of elements to `T` must not fail.")
+            .mul(*gamma)
+            .round()
+            .to_usize();
+
         let mut idx: Vec<_> = (0..self.n()).map(|id| (id, self.Y()[id])).collect();
         idx.sort_by(|(_, a), (_, b)| a.partial_cmp(b).expect("Partial cmp should not fail!"));
-
-        
 
         todo!()
     }
@@ -276,10 +275,7 @@ where
     }
 }
 
-impl<T> ObservationMean<T> for BaseMemory<T> where
-    T: dtype + FromPrimitive
-{
-}
+impl<T> ObservationMean<T> for BaseMemory<T> where T: dtype + FromPrimitive {}
 
 ////////////////////////////////////////////
 
@@ -351,10 +347,7 @@ where
     }
 }
 
-impl<T> ObservationMean<T> for LabcatMemory<T> where
-    T: dtype + FromPrimitive
-{
-}
+impl<T> ObservationMean<T> for LabcatMemory<T> where T: dtype + FromPrimitive {}
 
 impl<T> ObservationTransform<T> for LabcatMemory<T>
 where

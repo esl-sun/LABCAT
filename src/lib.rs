@@ -32,12 +32,9 @@ use bounds::Bounds;
 use doe::DoE;
 use ei::AcqFunction;
 
-pub trait dtype: ComplexField<Unit = Self, Group = IdentityGroup> + Real  {}
+pub trait dtype: ComplexField<Unit = Self, Group = IdentityGroup> + Real {}
 
-impl<T> dtype for T 
-where
-    T: ComplexField<Unit = Self, Group = IdentityGroup> + Real
-{}
+impl<T> dtype for T where T: ComplexField<Unit = Self, Group = IdentityGroup> + Real {}
 
 pub trait Surrogate<T>
 where

@@ -4,7 +4,6 @@
 use std::marker::PhantomData;
 
 use faer_core::Mat;
-use num_traits::One;
 use num_traits::real::Real;
 
 use crate::kde::KDE;
