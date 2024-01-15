@@ -1,6 +1,6 @@
 use std::ops::IndexMut;
 
-use faer_core::{Mat, MatMut, MatRef};
+use faer_core::{col, row, ColRef, Mat, MatMut, MatRef, RowRef, zip::MaybeContiguous};
 use ndarray::{Array, Ix2};
 
 use crate::dtype;
@@ -37,6 +37,8 @@ where
     fn to_owned_mat(self) -> Mat<E>;
     fn col_as_slice(&self, col: usize) -> &[E];
     fn row_as_slice(&self, row: usize) -> &[E];
+    fn cols(&self) -> impl DoubleEndedIterator<Item = ColRef<'_, E>> + '_;
+    fn rows(&self) -> impl DoubleEndedIterator<Item = RowRef<'_, E>> + '_;
 }
 
 impl<'a, E: dtype> MatRefUtils<E> for MatRef<'a, E> {
@@ -65,43 +67,68 @@ impl<'a, E: dtype> MatRefUtils<E> for MatRef<'a, E> {
         let ptr = self.as_ref().transpose().ptr_at(0, row);
         unsafe { core::slice::from_raw_parts(ptr, nrows) }
     }
+
+    #[inline]
+    #[track_caller]
+    fn cols(&self) -> impl DoubleEndedIterator<Item = ColRef<'_, E>> + '_ {
+        let row_stride = self.row_stride();
+
+        (0..self.ncols()).map(move |col_id| unsafe {
+            col::from_raw_parts(
+                self.as_ref().ptr_inbounds_at(0, col_id),
+                self.nrows(),
+                row_stride,
+            )
+        })
+    }
+
+    fn rows(&self) -> impl DoubleEndedIterator<Item = RowRef<'_, E>> + '_ {
+        let col_stride = self.col_stride();
+
+        (0..self.nrows()).map(move |row_id| unsafe {
+            row::from_raw_parts(
+                self.as_ref().ptr_inbounds_at(row_id, 0),
+                self.ncols(),
+                col_stride,
+            )
+        })
+    }
 }
 
 pub trait MatMutUtils<E>
 where
     E: dtype,
 {
-    // fn zip_apply_with_col_slice(&mut self, s: &[E], f: fn(E, E) -> E)
+    fn zip_apply_with_col_slice(&mut self, s: &[E], f: fn(E, E) -> E);
     fn zip_apply_with_row_slice(&mut self, s: &[E], f: fn(E, E) -> E);
     fn fill_fn(&mut self, f: fn(usize, usize) -> E);
     fn apply_fn(&mut self, f: fn((usize, usize), E) -> E);
 }
 
 impl<'a, E: dtype> MatMutUtils<E> for MatMut<'a, E> {
-    // fn zip_apply_with_col_slice(&mut self, s: &[E], f: fn(E, E) -> E)
-    // {
-    //     #[cfg(debug_assertions)]
-    //     if self.nrows() != s.len() {
-    //         panic!(
-    //             "Number of rows in self ({}) and column slice length ({}) do not match!",
-    //             self.nrows(),
-    //             s.len()
-    //         );
-    //     }
+    fn zip_apply_with_col_slice(&mut self, s: &[E], f: fn(E, E) -> E) {
+        #[cfg(debug_assertions)]
+        if self.ncols() != s.len() {
+            panic!(
+                "Number of rows in self ({}) and column slice length ({}) do not match!",
+                self.nrows(),
+                s.len()
+            );
+        }
 
-    //     let nrows = self.nrows();
-    //     let ncols = self.ncols();
+        let nrows = self.nrows();
+        let ncols = self.ncols();
 
-    //     (0..nrows)
-    //         .flat_map(move |i| (0..ncols).map(move |j| (i, j)))
-    //         .for_each(|(i, j)| self.write(i, j, f(*self.get_mut(i, j), s[i])));
-    // }
+        (0..nrows)
+            .flat_map(move |i| (0..ncols).map(move |j| (i, j)))
+            .for_each(|(i, j)| *self.index_mut((i, j)) = f(*self.index_mut((i, j)), s[i]));
+    }
 
     fn zip_apply_with_row_slice(&mut self, s: &[E], f: fn(E, E) -> E) {
         #[cfg(debug_assertions)]
         if self.ncols() != s.len() {
             panic!(
-                "Number of cols in self ({}) and column slice length ({}) do not match!",
+                "Number of cols in self ({}) and row slice length ({}) do not match!",
                 self.ncols(),
                 s.len()
             );
@@ -112,7 +139,6 @@ impl<'a, E: dtype> MatMutUtils<E> for MatMut<'a, E> {
 
         (0..nrows)
             .flat_map(move |i| (0..ncols).map(move |j| (i, j)))
-            // .for_each(|(i, j)| self.write(i, j, f(*self.get_mut(i, j), s[j])));
             .for_each(|(i, j)| *self.index_mut((i, j)) = f(*self.index_mut((i, j)), s[j]));
     }
 
@@ -129,12 +155,6 @@ impl<'a, E: dtype> MatMutUtils<E> for MatMut<'a, E> {
         let nrows = self.nrows();
         let ncols = self.ncols();
 
-        // for i in 0..nrows {
-        //     for j in 0..ncols {
-        //         *self.index_mut((i, j)) = f((i, j), *self.index_mut((i, j)))
-        //     }
-        // }
-
         (0..nrows)
             .flat_map(move |i| (0..ncols).map(move |j| (i, j)))
             .for_each(|(i, j)| *self.index_mut((i, j)) = f((i, j), *self.index_mut((i, j))));
@@ -146,16 +166,14 @@ where
     E: dtype,
 {
     fn indexed_iter(&self) -> impl Iterator<Item = ((usize, usize), &E)>;
-    // fn fill_iter<'a>(&mut self, iter: impl Iterator<Item = ((usize, usize), &'a E)>);
     fn fill_fn(&mut self, f: fn(usize, usize) -> E);
     fn apply_fn<F>(&mut self, f: F)
     where
         F: FnMut((usize, usize), E) -> E;
     fn fill_row_with_slice(&mut self, row: usize, s: &[E]);
     fn fill_col_with_slice(&mut self, col: usize, s: &[E]);
-    // fn remove_cols_rows(&self, col_idx: Vec<usize>, row_idx: Vec<usize>) -> Mat<T>;
-    // fn remove_cols(self, idx: Vec<usize>) -> Mat<E>;
-    // fn remove_rows(&self, idx: Vec<usize>) -> Mat<T>;
+    fn remove_cols(&self, idx: Vec<usize>) -> Mat<E>;
+    fn remove_rows(&self, idx: Vec<usize>) -> Mat<E>;
 }
 
 impl<E: dtype> MatUtils<E> for Mat<E> {
@@ -186,26 +204,116 @@ impl<E: dtype> MatUtils<E> for Mat<E> {
             .for_each(|(i, j)| self.write(i, j, f((i, j), *self.get(i, j))));
     }
 
-    // fn remove_cols_rows(&self, col_idx: Vec<usize>, row_idx: Vec<usize>) -> Mat<E> {
-    //     todo!()
-    // }
+    fn fill_row_with_slice(&mut self, row: usize, s: &[E]) {
+        #[cfg(debug_assertions)]
+        if row >= self.nrows() {
+            panic!(
+                "Row index ({}) out of bounds for matrix with {} rows!",
+                row,
+                self.nrows()
+            );
+        }
 
-    // fn remove_cols(self, idx: Vec<usize>) {
+        #[cfg(debug_assertions)]
+        if s.len() != self.ncols() {
+            panic!(
+                "Length of slice ({}) does not match number of columns in matrix ({})!",
+                s.len(),
+                self.ncols()
+            );
+        }
 
-    //     self
+        (0..self.ncols()).for_each(|j| self.write(row, j, s[j]))
+    }
 
-    //     // idx.dedup(); //remove duplicates
+    fn fill_col_with_slice(&mut self, col: usize, s: &[E]) {
+        #[cfg(debug_assertions)]
+        if col >= self.ncols() {
+            panic!(
+                "Col index ({}) out of bounds for matrix with {} cols!",
+                col,
+                self.ncols()
+            );
+        }
 
-    //     // let mut mat_red = Mat::<E>::new();
-    //     // self.col_chunks(1)
-    //     //     .enumerate()
-    //     //     .filter(|&(i, _)| !idx.contains(&i))
-    //     //     .map(|(i, col)| col)
-    //     //     .for_each(|col|)
-    //     // mat_red
+        #[cfg(debug_assertions)]
+        if s.len() != self.nrows() {
+            panic!(
+                "Length of slice ({}) does not match number of rows in matrix ({})!",
+                s.len(),
+                self.nrows()
+            );
+        }
 
-    //     todo!()
-    // }
+        (0..self.nrows()).for_each(|i| self.write(i, col, s[i]))
+    }
+
+    fn remove_cols(&self, mut idx: Vec<usize>) -> Mat<E>{
+
+        idx.sort(); //sort vec
+        idx.dedup(); //remove duplicates
+
+        #[cfg(debug_assertions)]
+        if let Some(max_id) = idx.last() {
+            if *max_id >= self.ncols() {
+                panic!(
+                    "Col index to remove ({}) out of bounds for matrix with {} cols!",
+                    max_id,
+                    self.ncols()
+                );
+            }
+        }
+
+        let nrows = self.nrows();
+        let mut mat_red = Mat::<E>::zeros(nrows, usize::saturating_sub(self.ncols(), idx.len()));
+
+        self.as_ref()
+            .cols()
+            .enumerate()
+            .filter(|(col_id, col)| !idx.binary_search(col_id).is_ok())
+            .enumerate()
+            .for_each(|(new_col_id, (col_id, col))| unsafe {
+                let s = core::slice::from_raw_parts(col.as_ptr(), nrows);
+                mat_red.fill_col_with_slice(new_col_id, s);
+            });
+
+        mat_red
+
+    }
+
+    fn remove_rows(&self, mut idx: Vec<usize>) -> Mat<E> {
+        
+        idx.sort(); //sort vec
+        idx.dedup(); //remove duplicates
+
+        #[cfg(debug_assertions)]
+        if let Some(max_id) = idx.last() {
+            if *max_id >= self.nrows() {
+                panic!(
+                    "Row index to remove ({}) out of bounds for matrix with {} rows!",
+                    max_id,
+                    self.nrows()
+                );
+            }
+        }
+
+        let ncols = self.ncols();
+        let mut mat_red = Mat::<E>::zeros(usize::saturating_sub(self.nrows(), idx.len()), ncols);
+
+        self.as_ref()
+            .rows()
+            .enumerate()
+            .filter(|(row_id, row)| !idx.binary_search(row_id).is_ok())
+            .enumerate()
+            .for_each(|(new_row_id, (row_id, row))| unsafe {
+                dbg!(&row);
+                let s = core::slice::from_raw_parts(row.as_ptr(), ncols); // FIX
+                dbg!(s);
+                mat_red.fill_row_with_slice(new_row_id, s);
+            });
+
+        mat_red
+    }
 
     // fn remove_rows(&self, idx: Vec<usize>) -> Mat<E> {
     //     todo!()

@@ -1,5 +1,5 @@
 use faer::{mat, Mat};
-use faer_core::zip::ViewMut;
+use faer_core::zip::{ViewMut, MaybeContiguous};
 use faer_core::{Col, Row};
 use labcat::kernel::{Kernel, KernelSum};
 use labcat::lhs::LHS;
@@ -43,14 +43,26 @@ fn main() {
     for item in i.indexed_iter() {
         dbg!(item);
     }
-    let mut mu = i.get_mut(0, 0..i.ncols());
 
-    mu.fill(2.0);
+    for col in i.as_ref().cols() {
+        dbg!(col);
+    }
 
-    dbg!(i.col_capacity());
-    dbg!(i);
+    for row in i.as_ref().rows() {
+        dbg!(row);
+    }
+
+    dbg!(i.remove_rows(vec![0,]));
+
+    // let mut mu = i.get_mut(0, 0..i.ncols());
+
+    // mu.fill(2.0);
+
+    // dbg!(i.col_capacity());
+    // dbg!(i);
     let c = Col::<f64>::zeros(5);
     let r = Row::<f64>::zeros(6);
+    c.as_ref().as_ptr();
 
     dbg!(c);
     dbg!(&r);
@@ -61,6 +73,7 @@ fn main() {
     let a = ndarray::Array2::<f64>::eye(4);
 
     let s = &[0.0, 1.0, 2.0];
+
     // dbg!(s.faer_add(&[10.0, 100.0, 1000.0]));
 
     // let X = mem.X().into();
