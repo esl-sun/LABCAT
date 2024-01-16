@@ -7,7 +7,7 @@ use ndarray_linalg::error::LinalgError;
 use ndarray_linalg::{CholeskyFactorized, FactorizeC, InverseC, Lapack, UPLO};
 
 use crate::kernel::Kernel;
-use crate::memory::ObservationIO;
+use crate::memory::{ObservationIO, ObservationMaxMin};
 use crate::ndarray_utils::Array2Utils;
 use crate::utils::MatRefUtils;
 use crate::{dtype, BayesianSurrogate, Surrogate, SurrogateMemory};
@@ -16,7 +16,7 @@ pub struct GP<T, K, M>
 where
     T: dtype,
     K: Kernel<T>,
-    M: ObservationIO<T>,
+    M: ObservationIO<T> + ObservationMaxMin<T>,
 {
     dim: usize,
     kernel: K,
@@ -31,7 +31,7 @@ impl<T, K, M> GP<T, K, M>
 where
     T: dtype + Lapack,
     K: Kernel<T>,
-    M: ObservationIO<T>,
+    M: ObservationIO<T> + ObservationMaxMin<T>,
 {
     pub fn new(d: usize) -> GP<T, K, M> {
         // GP { K: Array2::eye(3), alpha: Array1::zeros((3,)) }
@@ -48,7 +48,7 @@ impl<T, K, M> Default for GP<T, K, M>
 where
     T: dtype + Lapack,
     K: Kernel<T>,
-    M: ObservationIO<T>,
+    M: ObservationIO<T> + ObservationMaxMin<T>,
 {
     fn default() -> Self {
         Self {
@@ -69,7 +69,7 @@ impl<T, K, M> Surrogate<T> for GP<T, K, M>
 where
     T: dtype + Lapack,
     K: Kernel<T>,
-    M: ObservationIO<T>,
+    M: ObservationIO<T> + ObservationMaxMin<T>,
 {
     fn refit<E>(&mut self, X: Mat<T>, Y: &[T]) -> Result<(), E> {
         self.mem = ObservationIO::new(self.dim);
@@ -84,7 +84,7 @@ where
 
         self.L = self.K.factorizec(UPLO::Lower).unwrap();
         self.Kinv = self.L.invc().unwrap();
-
+        
         // let mut y_m = self.mem.y_m();
         // // self.L.ln_detc()
         // self.L.solvec_inplace(&mut y)?;
@@ -102,13 +102,15 @@ impl<T, K, M> SurrogateMemory<T> for GP<T, K, M>
 where
     T: dtype + Lapack,
     K: Kernel<T>,
-    M: ObservationIO<T>,
+    M: ObservationIO<T> + ObservationMaxMin<T>,
 {
-    fn memory(&self) -> &impl ObservationIO<T> {
+    #[allow(refining_impl_trait)]
+    fn memory(&self) -> &(impl ObservationIO<T> + ObservationMaxMin<T>) {
         &self.mem
     }
 
-    fn memory_mut(&mut self) -> &mut impl ObservationIO<T> {
+    #[allow(refining_impl_trait)]
+    fn memory_mut(&mut self) -> &mut (impl ObservationIO<T> + ObservationMaxMin<T>) {
         &mut self.mem
     }
 }
@@ -117,7 +119,7 @@ impl<T, K, M> BayesianSurrogate<T> for GP<T, K, M>
 where
     T: dtype + Lapack,
     K: Kernel<T>,
-    M: ObservationIO<T>,
+    M: ObservationIO<T> + ObservationMaxMin<T>,
 {
     fn probe_variance(&self, x: &[T]) -> T {
         todo!()

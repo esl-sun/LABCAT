@@ -10,7 +10,7 @@
 
 use faer_core::{ComplexField, IdentityGroup, Mat};
 use memory::ObservationIO;
-use num_traits::real::Real;
+use num_traits::{real::Real, FromPrimitive};
 use std::marker::PhantomData;
 
 pub mod bounds;
@@ -32,9 +32,9 @@ use bounds::Bounds;
 use doe::DoE;
 use ei::AcqFunction;
 
-pub trait dtype: ComplexField<Unit = Self, Group = IdentityGroup> + Real {}
+pub trait dtype: ComplexField<Unit = Self, Group = IdentityGroup> + Real + FromPrimitive {}
 
-impl<T> dtype for T where T: ComplexField<Unit = Self, Group = IdentityGroup> + Real {}
+impl<T> dtype for T where T: ComplexField<Unit = Self, Group = IdentityGroup> + Real + FromPrimitive {}
 
 pub trait Surrogate<T>
 where
@@ -51,6 +51,16 @@ where
 {
     fn memory(&self) -> &impl ObservationIO<T>;
     fn memory_mut(&mut self) -> &mut impl ObservationIO<T>;
+}
+
+pub trait SurrogateMaxMin<T>: Surrogate<T>
+where
+    T: dtype
+{
+    fn max(&self) -> Option<(usize, &[T], &T)>;
+    fn min(&self) -> Option<(usize, &[T], &T)>;
+    fn max_quantile(&self, gamma: &T) -> (Mat<T>, Mat<T>);
+    fn min_quantile(&self, gamma: &T) -> (Mat<T>, Mat<T>);
 }
 
 pub trait BayesianSurrogate<T>: Surrogate<T>
