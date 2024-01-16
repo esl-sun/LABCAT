@@ -1,6 +1,6 @@
 use std::ops::IndexMut;
 
-use faer_core::{col, row, ColRef, Mat, MatMut, MatRef, RowRef, zip::MaybeContiguous};
+use faer_core::{col, row, ColRef, Mat, MatMut, MatRef, RowRef};
 use ndarray::{Array, Ix2};
 
 use crate::dtype;
@@ -173,7 +173,7 @@ where
     fn fill_row_with_slice(&mut self, row: usize, s: &[E]);
     fn fill_col_with_slice(&mut self, col: usize, s: &[E]);
     fn remove_cols(&self, idx: Vec<usize>) -> Mat<E>;
-    fn remove_rows(&self, idx: Vec<usize>) -> Mat<E>;
+    // fn remove_rows(&self, idx: Vec<usize>) -> Mat<E>;
 }
 
 impl<E: dtype> MatUtils<E> for Mat<E> {
@@ -270,9 +270,9 @@ impl<E: dtype> MatUtils<E> for Mat<E> {
         self.as_ref()
             .cols()
             .enumerate()
-            .filter(|(col_id, col)| !idx.binary_search(col_id).is_ok())
+            .filter(|(col_id, _)| idx.binary_search(col_id).is_err())
             .enumerate()
-            .for_each(|(new_col_id, (col_id, col))| unsafe {
+            .for_each(|(new_col_id, (_, col))| unsafe {
                 let s = core::slice::from_raw_parts(col.as_ptr(), nrows);
                 mat_red.fill_col_with_slice(new_col_id, s);
             });
@@ -281,39 +281,41 @@ impl<E: dtype> MatUtils<E> for Mat<E> {
 
     }
 
-    fn remove_rows(&self, mut idx: Vec<usize>) -> Mat<E> {
+    //DOES NOT WORK, possibly due to not being able to take row slice of column-major matrix, Maybe use slower implementation with manual read/write
+    // fn remove_rows(&self, mut idx: Vec<usize>) -> Mat<E> {
         
-        idx.sort(); //sort vec
-        idx.dedup(); //remove duplicates
+    //     idx.sort(); //sort vec
+    //     idx.dedup(); //remove duplicates
 
-        #[cfg(debug_assertions)]
-        if let Some(max_id) = idx.last() {
-            if *max_id >= self.nrows() {
-                panic!(
-                    "Row index to remove ({}) out of bounds for matrix with {} rows!",
-                    max_id,
-                    self.nrows()
-                );
-            }
-        }
+    //     #[cfg(debug_assertions)]
+    //     if let Some(max_id) = idx.last() {
+    //         if *max_id >= self.nrows() {
+    //             panic!(
+    //                 "Row index to remove ({}) out of bounds for matrix with {} rows!",
+    //                 max_id,
+    //                 self.nrows()
+    //             );
+    //         }
+    //     }
 
-        let ncols = self.ncols();
-        let mut mat_red = Mat::<E>::zeros(usize::saturating_sub(self.nrows(), idx.len()), ncols);
+    //     let ncols = self.ncols();
+    //     let mut mat_red = Mat::<E>::zeros(usize::saturating_sub(self.nrows(), idx.len()), ncols);
 
-        self.as_ref()
-            .rows()
-            .enumerate()
-            .filter(|(row_id, row)| !idx.binary_search(row_id).is_ok())
-            .enumerate()
-            .for_each(|(new_row_id, (row_id, row))| unsafe {
-                dbg!(&row);
-                let s = core::slice::from_raw_parts(row.as_ptr(), ncols); // FIX
-                dbg!(s);
-                mat_red.fill_row_with_slice(new_row_id, s);
-            });
+    //     self.as_ref()
+    //         .transpose()
+    //         .cols()
+    //         .enumerate()
+    //         .filter(|(row_id, row)| !idx.binary_search(row_id).is_ok())
+    //         .enumerate()
+    //         .for_each(|(new_row_id, (row_id, row))| unsafe {
+    //             dbg!(&row);
+    //             let s = core::slice::from_raw_parts(row.as_ptr(), ncols); // FIX
+    //             dbg!(s);
+    //             mat_red.fill_row_with_slice(new_row_id, s);
+    //         });
 
-        mat_red
-    }
+    //     mat_red
+    // }
 
     // fn remove_rows(&self, idx: Vec<usize>) -> Mat<E> {
     //     todo!()

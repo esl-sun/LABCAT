@@ -305,7 +305,7 @@ where
     {
         self.columns()
             .into_iter()
-            .zip(rhs.rows().into_iter())
+            .zip(rhs.rows())
             .map(|(col, row)| col.dot(&row))
             .sum()
     }
@@ -407,7 +407,7 @@ where
     {
         self.columns()
             .into_iter()
-            .zip(rhs.rows().into_iter())
+            .zip(rhs.rows())
             .map(|(col, row)| col.dot(&row))
             .sum()
     }
