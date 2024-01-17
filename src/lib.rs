@@ -8,9 +8,9 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 
-use faer_core::{ComplexField, IdentityGroup, Mat};
-use memory::ObservationIO;
-use num_traits::{real::Real, FromPrimitive};
+use faer_core::{ComplexField, IdentityGroup};
+use memory::{BaseMemory, ObservationIO};
+use num_traits::{real::Real, FromPrimitive, ToPrimitive};
 use std::marker::PhantomData;
 
 pub mod bounds;
@@ -32,43 +32,41 @@ use bounds::Bounds;
 use doe::DoE;
 use ei::AcqFunction;
 
-pub trait dtype: ComplexField<Unit = Self, Group = IdentityGroup> + Real + FromPrimitive {}
-
-impl<T> dtype for T where T: ComplexField<Unit = Self, Group = IdentityGroup> + Real + FromPrimitive {}
-
-pub trait Surrogate<T>
-where
-    T: dtype,
+pub trait dtype:
+    ComplexField<Unit = Self, Group = IdentityGroup> + Real + FromPrimitive + ToPrimitive
 {
-    fn refit<E>(&mut self, X: Mat<T>, Y: &[T]) -> Result<(), E>;
-    fn probe(&self, x: &[T]) -> T;
-    // fn bounds(&self) -> Vec<>
 }
 
-pub trait SurrogateMemory<T>: Surrogate<T>
-where
-    T: dtype,
+impl<T> dtype for T where
+    T: ComplexField<Unit = Self, Group = IdentityGroup> + Real + FromPrimitive + ToPrimitive
 {
-    fn memory(&self) -> &impl ObservationIO<T>;
-    fn memory_mut(&mut self) -> &mut impl ObservationIO<T>;
 }
 
-pub trait SurrogateMaxMin<T>: Surrogate<T>
-where
-    T: dtype
-{
-    fn max(&self) -> Option<(usize, &[T], &T)>;
-    fn min(&self) -> Option<(usize, &[T], &T)>;
-    fn max_quantile(&self, gamma: &T) -> (Mat<T>, Mat<T>);
-    fn min_quantile(&self, gamma: &T) -> (Mat<T>, Mat<T>);
-}
-
-pub trait BayesianSurrogate<T>: Surrogate<T>
+pub trait Surrogate<T, M>
 where
     T: dtype,
+    M: ObservationIO<T>,
 {
-    fn probe_variance(&self, x: &[T]) -> T;
-    // fn bounds(&self) -> Vec<>
+    fn probe(&self, x: &[T]) -> Option<T>;
+}
+
+pub trait BayesianSurrogate<T, M>: Surrogate<T, M>
+where
+    T: dtype,
+    M: ObservationIO<T>,
+{
+    fn probe_variance(&self, x: &[T]) -> Option<T>;
+}
+
+pub trait Memory<T, MI, MO>
+where
+    T: dtype,
+    MI: ObservationIO<T>,
+    MO: ObservationIO<T>,
+{
+    fn refit<E>(&mut self, mem: &MI) -> Result<(), E>;
+    fn memory(&self) -> &MO;
+    fn memory_mut(&mut self) -> &mut MO;
 }
 
 pub trait AskTell<T>
@@ -86,13 +84,13 @@ where
     B: Bounds<T>,
     D: DoE<T>,
     M: ObservationIO<T>,
-    S: Surrogate<T>,
-    A: AcqFunction<T>,
+    S: Surrogate<T, M>,
+    A: AcqFunction<T, M, S>,
 {
-    data_type: PhantomData<T>,
+    surrogate_mem_type: PhantomData<M>,
     bounds: B,
     doe: D,
-    mem: M,
+    mem: BaseMemory<T>,
     acq_func: A,
     surrogate: S,
 }
@@ -102,9 +100,9 @@ where
     T: dtype,
     B: Bounds<T>,
     D: DoE<T>,
-    S: Surrogate<T>,
+    S: Surrogate<T, M>,
     M: ObservationIO<T>,
-    A: AcqFunction<T>,
+    A: AcqFunction<T, M, S>,
 {
     pub fn new() -> SMBO<T, B, D, M, S, A> {
         todo!()
@@ -112,11 +110,7 @@ where
 
     fn optimize(self) {
         // let doe = self.doe.build_DoE();
-    }
-
-    fn test(self) {
-        // let x: Vector<T> = self.surrogate.ask().into();
-        // self.surrogate.tell(x, T);
+        todo!()
     }
 }
 
@@ -125,9 +119,9 @@ where
     T: dtype,
     B: Bounds<T>,
     D: DoE<T>,
-    S: Surrogate<T>,
+    S: Surrogate<T, M>,
     M: ObservationIO<T>,
-    A: AcqFunction<T>,
+    A: AcqFunction<T, M, S>,
 {
     fn ask(&mut self) -> Vec<T> {
         todo!()

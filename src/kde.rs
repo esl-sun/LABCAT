@@ -3,11 +3,9 @@
 
 use std::marker::PhantomData;
 
-use faer_core::Mat;
-
 use crate::kernel::Kernel;
 use crate::memory::{BaseMemory, ObservationIO};
-use crate::{dtype, Surrogate, SurrogateMemory};
+use crate::{dtype, Memory, Surrogate};
 
 #[derive(Debug, Clone)]
 pub struct KDE<T, K>
@@ -48,31 +46,34 @@ where
     }
 }
 
-impl<T, K> Surrogate<T> for KDE<T, K>
+impl<T, K, M> Surrogate<T, M> for KDE<T, K>
 where
     T: dtype,
     K: Kernel<T>,
+    M: ObservationIO<T>,
 {
-    fn refit<E>(&mut self, _: Mat<T>, _: &[T]) -> Result<(), E> {
-        Ok(())
-    }
-
-    fn probe(&self, x: &[T]) -> T {
+    fn probe(&self, x: &[T]) -> Option<T> {
         // self.mem.X().cols()
         todo!()
     }
 }
 
-impl<T, K> SurrogateMemory<T> for KDE<T, K>
+impl<T, K, MI> Memory<T, MI, BaseMemory<T>> for KDE<T, K>
 where
     T: dtype,
     K: Kernel<T>,
+    MI: ObservationIO<T>,
 {
-    fn memory(&self) -> &impl ObservationIO<T> {
+    fn refit<E>(&mut self, mem: &MI) -> Result<(), E> {
+        // self.mem = mem.clone();
+        Ok(())
+    }
+
+    fn memory(&self) -> &BaseMemory<T> {
         &self.mem
     }
 
-    fn memory_mut(&mut self) -> &mut impl ObservationIO<T> {
+    fn memory_mut(&mut self) -> &mut BaseMemory<T> {
         &mut self.mem
     }
 }
