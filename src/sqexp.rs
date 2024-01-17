@@ -40,10 +40,10 @@ where
         }
 
         let dif = &p - &q;
-        let exponent = T::neg(T::one() / (T::one() + T::one())) * dif.dot(&dif) / self.l; // -0.5 * ...
+        let exponent = (T::one() + T::one()).recip().neg() * dif.dot(&dif) / self.l; // -0.5 * ...
         let val: T = self.sigma_f().powi(2) * exponent.exp();
 
-        match { &p.eq(&q) } {
+        match &p.eq(&q) {
             true => val + self.sigma_n().powi(2),
             false => val,
         }
@@ -125,7 +125,7 @@ where
         let exponent = T::neg(T::one() / (T::one() + T::one())) * dif.dot(&self.l_inv).dot(&dif); // -0.5 * ...
         let val: T = self.sigma_f().powi(2) * exponent.exp();
 
-        match { &p.eq(&q) } {
+        match &p.eq(&q) {
             true => val + self.sigma_n().powi(2),
             false => val,
         }

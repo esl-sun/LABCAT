@@ -248,8 +248,7 @@ impl<E: dtype> MatUtils<E> for Mat<E> {
         (0..self.nrows()).for_each(|i| self.write(i, col, s[i]))
     }
 
-    fn remove_cols(&self, mut idx: Vec<usize>) -> Mat<E>{
-
+    fn remove_cols(&self, mut idx: Vec<usize>) -> Mat<E> {
         idx.sort(); //sort vec
         idx.dedup(); //remove duplicates
 
@@ -278,12 +277,11 @@ impl<E: dtype> MatUtils<E> for Mat<E> {
             });
 
         mat_red
-
     }
 
     //DOES NOT WORK, possibly due to not being able to take row slice of column-major matrix, Maybe use slower implementation with manual read/write
     // fn remove_rows(&self, mut idx: Vec<usize>) -> Mat<E> {
-        
+
     //     idx.sort(); //sort vec
     //     idx.dedup(); //remove duplicates
 
