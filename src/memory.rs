@@ -15,7 +15,7 @@ where
     fn new(d: usize) -> Self;
     fn dim(&self) -> usize;
     fn n(&self) -> usize;
-    fn X(&self) -> MatRef<T>;
+    fn X(&self) -> &Mat<T>;
     fn Y(&self) -> &[T];
     fn append(&mut self, x: &[T], y: T);
     fn append_mult(&mut self, X: MatRef<T>, Y: &[T]);
@@ -26,12 +26,52 @@ where
 
 pub trait ObservationMaxMin<T>: ObservationIO<T>
 where
-    T: dtype,
+    T: dtype + OrdSubset,
 {
-    fn max(&self) -> Option<(usize, &[T], &T)>;
-    fn min(&self) -> Option<(usize, &[T], &T)>;
-    fn max_quantile(&self, gamma: &T) -> (Mat<T>, Mat<T>);
-    fn min_quantile(&self, gamma: &T) -> (Mat<T>, Mat<T>);
+    fn max(&self) -> Option<(usize, &[T], &T)> {
+        let (i, y_max) = self
+            .Y()
+            .iter()
+            .enumerate()
+            .ord_subset_max_by_key(|&(_, x)| x)?;
+        let x_max = self.X().col_as_slice(i);
+        Some((i, x_max, y_max))
+    }
+    
+    fn min(&self) -> Option<(usize, &[T], &T)> {
+        let (i, y_min) = self
+            .Y()
+            .iter()
+            .enumerate()
+            .ord_subset_min_by_key(|&(_, x)| x)?;
+        let x_min = self.X().col_as_slice(i);
+        Some((i, x_min, y_min))
+    }
+
+    fn max_quantile(&self, gamma: &T) -> (Mat<T>, Mat<T>) {
+        #[cfg(debug_assertions)]
+        if *gamma < T::zero() || *gamma > T::one() {
+            panic!(
+                "Supplied gamma ({:?}) must be int the interval [0, 1]!",
+                gamma
+            );
+        }
+
+        let n_upper = T::from_usize(self.n())
+            .expect("Converting number of elements to `T` must not fail.")
+            .mul(*gamma)
+            .round()
+            .to_usize();
+
+        let mut idx: Vec<_> = (0..self.n()).map(|id| (id, self.Y()[id])).collect();
+        idx.sort_by(|(_, a), (_, b)| a.partial_cmp(b).expect("Partial cmp should not fail!"));
+
+        todo!()
+    }
+
+    fn min_quantile(&self, gamma: &T) -> (Mat<T>, Mat<T>) {
+        todo!()
+    }
 }
 
 pub trait ObservationMean<T>: ObservationIO<T>
@@ -56,7 +96,8 @@ where
         if n == 0 {
             None
         } else {
-            let n = T::from_usize(n).expect("Converting number of observations to `T` must not fail.");
+            let n =
+                T::from_usize(n).expect("Converting number of observations to `T` must not fail.");
             Some(
                 self.Y()
                     .iter()
@@ -69,6 +110,7 @@ where
     fn X_mean(&self) -> Col<T> {
         Col::<T>::from_fn(self.dim(), |j| {
             self.X()
+                .as_ref()
                 .row_as_slice(j)
                 .iter()
                 .fold(T::zero(), |acc, elem| T::add(acc, *elem))
@@ -81,7 +123,7 @@ where
 pub trait ObservationVariance<T>: ObservationIO<T>
 where
     T: dtype,
-{   
+{
     /// Returns the variance of the observations.
     ///
     /// The variance is computed using the [Welford one-pass
@@ -108,11 +150,12 @@ where
     /// ```
     ///
     /// and `n` is the length of the array.
-    /// 
+    ///
     /// **Panics** if `ddof` is less than zero or greater than `n`
     fn Y_var(&self, ddof: T) -> T {
         let zero = T::zero();
-        let n = T::from_usize(self.Y().len()).expect("Converting number of observations to `T` must not fail.");
+        let n = T::from_usize(self.Y().len())
+            .expect("Converting number of observations to `T` must not fail.");
         assert!(
             !(ddof < zero || ddof > n),
             "`ddof` must not be less than zero or greater than the number of observations",
@@ -122,9 +165,10 @@ where
         let mut mean = T::zero();
         let mut sum_sq = T::zero();
         let mut i = 0;
-        
+
         self.Y().iter().for_each(|&x| {
-            let count = T::from_usize(i + 1).expect("Converting index to `A` must not fail.");
+            let count = T::from_usize(i + 1)
+                .expect("Converting number of observations to `T` must not fail.");
             let delta = x - mean;
             mean = mean + delta / count;
             sum_sq = (x - mean).mul_add(delta, sum_sq);
@@ -160,7 +204,7 @@ where
     /// ```
     ///
     /// and `n` is the length of the array.
-    /// 
+    ///
     /// **Panics** if `ddof` is less than zero or greater than `n`
     fn Y_std(&self, ddof: T) -> T {
         self.Y_var(ddof).sqrt()
@@ -247,8 +291,8 @@ where
         self.X.ncols()
     }
 
-    fn X(&self) -> MatRef<T> {
-        self.X.as_ref()
+    fn X(&self) -> &Mat<T> {
+        &self.X
     }
 
     fn Y(&self) -> &[T] {
@@ -316,52 +360,7 @@ where
 impl<T> ObservationMaxMin<T> for BaseMemory<T>
 where
     T: dtype + OrdSubset,
-{
-    fn max(&self) -> Option<(usize, &[T], &T)> {
-        let (i, y_max) = self
-            .Y()
-            .iter()
-            .enumerate()
-            .ord_subset_max_by_key(|&(_, x)| x)?;
-        let x_max = self.X.col_as_slice(i);
-        Some((i, x_max, y_max))
-    }
-
-    fn min(&self) -> Option<(usize, &[T], &T)> {
-        let (i, y_min) = self
-            .Y()
-            .iter()
-            .enumerate()
-            .ord_subset_min_by_key(|&(_, x)| x)?;
-        let x_min = self.X.col_as_slice(i);
-        Some((i, x_min, y_min))
-    }
-
-    fn max_quantile(&self, gamma: &T) -> (Mat<T>, Mat<T>) {
-        #[cfg(debug_assertions)]
-        if *gamma < T::zero() || *gamma > T::one() {
-            panic!(
-                "Supplied gamma ({:?}) must be int the interval [0, 1]!",
-                gamma
-            );
-        }
-
-        let n_upper = T::from_usize(self.n())
-            .expect("Converting number of elements to `T` must not fail.")
-            .mul(*gamma)
-            .round()
-            .to_usize();
-
-        let mut idx: Vec<_> = (0..self.n()).map(|id| (id, self.Y()[id])).collect();
-        idx.sort_by(|(_, a), (_, b)| a.partial_cmp(b).expect("Partial cmp should not fail!"));
-
-        todo!()
-    }
-
-    fn min_quantile(&self, gamma: &T) -> (Mat<T>, Mat<T>) {
-        todo!()
-    }
-}
+{}
 
 impl<T> ObservationMean<T> for BaseMemory<T> where T: dtype {}
 
@@ -406,7 +405,7 @@ where
         self.base_mem.n()
     }
 
-    fn X(&self) -> MatRef<T> {
+    fn X(&self) -> &Mat<T> {
         self.base_mem.X()
     }
 
