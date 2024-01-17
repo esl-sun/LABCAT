@@ -3,14 +3,16 @@
 use std::{iter::Sum, ops::Neg};
 
 use faer::IntoNdarray;
-use faer_core::{Entity, Mat, SimpleEntity};
+use faer_core::{ColMut, ColRef, Entity, Mat, RowMut, RowRef, SimpleEntity};
 use ndarray::{
-    s, Array1, Array2, ArrayBase, ArrayView1, ArrayView2, Axis, DataMut, DataOwned, Dimension,
-    LinalgScalar,
+    s, Array1, Array2, ArrayBase, ArrayView1, ArrayView2, ArrayViewMut2, Axis, DataMut,
+    DataOwned, Dimension, LinalgScalar, ShapeBuilder,
 };
 use ndarray_linalg::{Scalar, UPLO};
 use num_traits::real::Real;
 use ord_subset::{OrdSubset, OrdSubsetIterExt};
+
+///////////////////////////////////////////////////////
 
 pub trait IntoOwnedNdarray {
     type Ndarray;
@@ -29,6 +31,72 @@ where
         self.as_ref().into_ndarray().into_owned()
     }
 }
+
+///////////////////////////////////////////////////////
+
+pub trait RowColIntoNdarray {
+    type Ndarray;
+    #[track_caller]
+    fn into_ndarray(self) -> Self::Ndarray;
+}
+
+impl<'a, T> RowColIntoNdarray for ColRef<'a, T>
+where
+    T: Entity + SimpleEntity,
+{
+    type Ndarray = ArrayView2<'a, T>;
+
+    #[track_caller]
+    fn into_ndarray(self) -> Self::Ndarray {
+        let nrows = self.nrows();
+        let ptr = self.as_ptr();
+        unsafe { ArrayView2::<'_, T>::from_shape_ptr((nrows, 1_usize).into_shape(), ptr) }
+    }
+}
+
+impl<'a, T> RowColIntoNdarray for ColMut<'a, T>
+where
+    T: Entity + SimpleEntity,
+{
+    type Ndarray = ArrayViewMut2<'a, T>;
+
+    #[track_caller]
+    fn into_ndarray(self) -> Self::Ndarray {
+        let nrows = self.nrows();
+        let ptr = self.as_ptr_mut();
+        unsafe { ArrayViewMut2::<'_, T>::from_shape_ptr((nrows, 1_usize).into_shape(), ptr) }
+    }
+}
+
+impl<'a, T> RowColIntoNdarray for RowRef<'a, T>
+where
+    T: Entity + SimpleEntity,
+{
+    type Ndarray = ArrayView2<'a, T>;
+
+    #[track_caller]
+    fn into_ndarray(self) -> Self::Ndarray {
+        let ncols = self.ncols();
+        let ptr = self.as_ptr();
+        unsafe { ArrayView2::<'_, T>::from_shape_ptr((1_usize, ncols).into_shape(), ptr) }
+    }
+}
+
+impl<'a, T> RowColIntoNdarray for RowMut<'a, T>
+where
+    T: Entity + SimpleEntity,
+{
+    type Ndarray = ArrayViewMut2<'a, T>;
+
+    #[track_caller]
+    fn into_ndarray(self) -> Self::Ndarray {
+        let ncols = self.ncols();
+        let ptr = self.as_ptr_mut();
+        unsafe { ArrayViewMut2::<'_, T>::from_shape_ptr((1, ncols).into_shape(), ptr) }
+    }
+}
+
+///////////////////////////////////////////////////////
 
 pub trait ArrayBaseUtils<D, T, S>
 where
@@ -394,6 +462,8 @@ where
     fn product_trace(&self, rhs: ArrayView2<T>) -> T
     where
         T: LinalgScalar + std::iter::Sum;
+
+    fn as_1D(&self) -> Option<ArrayView1<'_, T>>;
 }
 
 impl<T> ArrayView2Utils<T> for ArrayView2<'_, T>
@@ -410,6 +480,18 @@ where
             .zip(rhs.rows())
             .map(|(col, row)| col.dot(&row))
             .sum()
+    }
+
+    fn as_1D(&self) -> Option<ArrayView1<'_, T>> {
+        if self.ncols() > 1 && self.nrows() > 1 {
+            None
+        } else {
+            if self.nrows() == 1 {
+                Some(self.row(0))
+            } else {
+                Some(self.column(0))
+            }
+        }
     }
 }
 
