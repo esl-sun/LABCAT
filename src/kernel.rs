@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 
-use crate::dtype;
+use faer_core::{MatRef, Row};
+
+use crate::{dtype, utils::MatRefUtils};
 
 pub trait Kernel<T>
 where
@@ -9,6 +11,10 @@ where
 {
     fn new(d: usize) -> Self;
     fn k(&self, p: &[T], q: &[T]) -> T;
+
+    fn k_diag(&self, X: MatRef<T>, x: &[T]) -> Row<T> {
+        Row::<T>::from_fn(X.ncols(), |i| self.k(X.col_as_slice(i), x))
+    }
 
     fn sum<K: Kernel<T>>(self, other: K) -> KernelSum<T, Self, K> {
         KernelSum {
