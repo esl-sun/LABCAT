@@ -485,12 +485,10 @@ where
     fn as_1D(&self) -> Option<ArrayView1<'_, T>> {
         if self.ncols() > 1 && self.nrows() > 1 {
             None
+        } else if self.nrows() == 1 {
+            Some(self.row(0))
         } else {
-            if self.nrows() == 1 {
-                Some(self.row(0))
-            } else {
-                Some(self.column(0))
-            }
+            Some(self.column(0))
         }
     }
 }
