@@ -3,9 +3,11 @@
 
 use std::marker::PhantomData;
 
+use anyhow::Result;
+
 use crate::kernel::Kernel;
 use crate::memory::{BaseMemory, ObservationIO};
-use crate::{dtype, Memory, Surrogate};
+use crate::{dtype, Memory, Surrogate, Refit};
 
 #[derive(Debug, Clone)]
 pub struct KDE<T, K>
@@ -53,22 +55,28 @@ where
     M: ObservationIO<T>,
 {
     fn probe(&self, x: &[T]) -> Option<T> {
-        // self.mem.X().cols()
         todo!()
     }
 }
 
-impl<T, K, MI> Memory<T, MI, BaseMemory<T>> for KDE<T, K>
+impl<T, K, M> Refit<T, M> for KDE<T, K>
 where
     T: dtype,
     K: Kernel<T>,
-    MI: ObservationIO<T>,
+    M: ObservationIO<T>,
 {
-    fn refit<E>(&mut self, mem: &MI) -> Result<(), E> {
-        // self.mem = mem.clone();
+    fn refit(&mut self, mem: &M) -> Result<()> {
+        self.mem.discard_all();
+        self.mem.append_mult(mem.X().as_ref(), mem.Y());
         Ok(())
     }
+}
 
+impl<T, K> Memory<T, BaseMemory<T>> for KDE<T, K>
+where
+    T: dtype,
+    K: Kernel<T>,
+{
     fn memory(&self) -> &BaseMemory<T> {
         &self.mem
     }

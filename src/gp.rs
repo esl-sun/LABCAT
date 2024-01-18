@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 
+use anyhow::Result;
 use ndarray::{Array1, Array2, OwnedRepr};
 use ndarray_linalg::{CholeskyFactorized, FactorizeC, InverseC, Lapack, SolveC, UPLO};
 use num_traits::real::Real;
@@ -8,8 +9,15 @@ use num_traits::real::Real;
 use crate::kernel::{BayesianKernel, Kernel};
 use crate::memory::{ObservationIO, ObservationMean};
 use crate::ndarray_utils::{Array2Utils, ArrayView2Utils, RowColIntoNdarray};
-use crate::{dtype, BayesianSurrogate, Memory, Surrogate};
+use crate::{dtype, BayesianSurrogate, Memory, Surrogate, Refit};
 
+pub trait GPSurrogate<T, M>: Surrogate<T, M> + BayesianSurrogate<T, M>
+where
+    T: dtype,
+    M: ObservationIO<T>
+{}
+
+// #[derive(Clone, Debug)]
 pub struct GP<T, K, M>
 where
     T: dtype,
@@ -31,7 +39,7 @@ where
     K: Kernel<T>,
     M: ObservationIO<T>,
 {
-    pub fn new(_: usize) -> GP<T, K, M> {
+    pub fn new(_: usize, _: K) -> GP<T, K, M> {
         // GP { K: Array2::eye(3), alpha: Array1::zeros((3,)) }
         todo!()
     }
@@ -59,6 +67,14 @@ where
     }
 }
 
+impl<T, K, M> GPSurrogate<T, M> for GP<T, K, M> 
+where 
+    Self: Surrogate<T, M> + BayesianSurrogate<T, M>,
+    T: dtype,
+    K: Kernel<T>,
+    M: ObservationIO<T>
+{}
+
 impl<T, K, M> Surrogate<T, M> for GP<T, K, M>
 where
     T: dtype + Lapack,
@@ -78,14 +94,14 @@ where
     }
 }
 
-impl<T, K, MI, MO> Memory<T, MI, MO> for GP<T, K, MO>
+impl<T, K, M, MI> Refit<T, M> for GP<T, K, MI> 
 where
     T: dtype + Lapack,
     K: Kernel<T>,
-    MI: ObservationIO<T>,
-    MO: ObservationIO<T> + ObservationMean<T>,
+    M: ObservationIO<T>,
+    MI: ObservationIO<T> + ObservationMean<T>,
 {
-    fn refit<E>(&mut self, mem: &MI) -> Result<(), E> {
+    fn refit(&mut self, mem: &M) -> Result<()> {
         self.mem = ObservationIO::new(self.dim);
         self.mem.append_mult(mem.X().as_ref(), mem.Y());
 
@@ -99,19 +115,25 @@ where
         self.L = self.K.factorizec(UPLO::Lower).unwrap();
         self.Kinv = self.L.invc().unwrap();
 
-        // let mut y_m = self.mem.y_m();
-        // // self.L.ln_detc()
-        // self.L.solvec_inplace(&mut y)?;
-        // self.alpha = y.into_col();
+        self.alpha = Array1::from_iter(self.mem.Y()).mapv(|val| *val - self.mem.Y_mean().unwrap());
+        self.L.solvec_inplace(&mut self.alpha)?;
 
         Ok(())
     }
+}
 
-    fn memory(&self) -> &MO {
+impl<T, K, M> Memory<T, M> for GP<T, K, M>
+where
+    T: dtype + Lapack,
+    K: Kernel<T>,
+    M: ObservationIO<T> + ObservationMean<T>,
+{
+
+    fn memory(&self) -> &M {
         &self.mem
     }
 
-    fn memory_mut(&mut self) -> &mut MO {
+    fn memory_mut(&mut self) -> &mut M {
         &mut self.mem
     }
 }
