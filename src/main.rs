@@ -1,11 +1,11 @@
-use faer::{mat, Mat};
-use faer_core::zip::{ViewMut, MaybeContiguous};
+use faer::Mat;
 use faer_core::{Col, Row};
+use labcat::AskTell;
+use labcat::bounds::ContinuousBounds;
 use labcat::kernel::{Kernel, KernelSum};
 use labcat::lhs::LHS;
 use labcat::memory::{BaseMemory, ObservationIO};
 use labcat::{ei::EI, gp::GP, kde::KDE, sqexp::SqExpARD, SMBO};
-use ndarray::s;
 // use faer_core::ColIndex;
 // use faer_core::Mat;
 
@@ -17,7 +17,8 @@ fn main() {
     let kern2 = SqExpARD::<f32>::new(5);
     let kern3 = SqExpARD::<f32>::new(5);
     let sum = kern.sum(kern2);
-    let sum2 = sum.sum(kern3);
+    let sum = sum.sum(kern3);
+    let _ = sum;
 
     let kde = KDE::<f32, KernelSum<f32, SqExpARD<f32>, SqExpARD<f32>>>::new(5);
     dbg!(kde);
@@ -28,7 +29,7 @@ fn main() {
     dbg!(mem);
 
     let mut i = Mat::<f64>::identity(2, 3);
-    let mut j = Mat::<f64>::identity(3, 2);
+
     // let k = i * j;
     // i.resize_with(new_nrows, new_ncols, f);
     // dbg!(&i);
@@ -52,7 +53,7 @@ fn main() {
         dbg!(row);
     }
 
-    dbg!(i.remove_rows(vec![0,]));
+    // dbg!(i.remove_rows(vec![0,]));
 
     // let mut mu = i.get_mut(0, 0..i.ncols());
 
@@ -70,20 +71,23 @@ fn main() {
     let r2 = r.clone();
     dbg!(r2);
 
-    let a = ndarray::Array2::<f64>::eye(4);
+    // let a = ndarray::Array2::<f64>::eye(4);
 
-    let s = &[0.0, 1.0, 2.0];
+    // let s = &[0.0, 1.0, 2.0];
 
     // dbg!(s.faer_add(&[10.0, 100.0, 1000.0]));
 
     // let X = mem.X().into();
     // dbg!(test(X.into()));
 
-    // let smbo = SMBO::<
-    //     f64,
-    //     LHS<f64>,
-    //     BaseMemory<f64>,
-    //     GP<f64, SqExpARD<f64>>,
-    //     EI<'_, f64, GP<f64, SqExpARD<f64>>>,
-    // >::new();
+    let mut smbo = SMBO::<
+        f64,
+        ContinuousBounds,
+        LHS<f64>,
+        BaseMemory<f64>,
+        GP<f64, SqExpARD<f64>, BaseMemory<f64>>,
+        EI<f64>,
+    >::new();
+
+    smbo.ask();
 }
