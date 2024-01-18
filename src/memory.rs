@@ -1,11 +1,11 @@
 #![allow(non_snake_case)]
 
-use faer_core::{Col, Mat, MatRef};
+use faer_core::{Col, Mat, MatRef, Row};
 use ord_subset::{OrdSubset, OrdSubsetIterExt};
 
 use crate::{
     dtype,
-    utils::{MatMutUtils, MatRefUtils},
+    utils::{MatRefUtils, MatUtils},
 };
 
 pub trait ObservationIO<T>
@@ -48,7 +48,11 @@ where
         Some((i, x_min, y_min))
     }
 
-    fn max_quantile(&self, gamma: &T) -> (Mat<T>, Mat<T>) {
+    /// (max_quantile, min_quantile)  TODO: expand doc
+    fn max_quantile(&self, gamma: &T) -> (Self, Self)
+    where 
+        Self: Sized + Clone
+    {
         #[cfg(debug_assertions)]
         if *gamma < T::zero() || *gamma > T::one() {
             panic!(
@@ -58,19 +62,62 @@ where
         }
 
         let n_upper = T::from_usize(self.n())
-            .expect("Converting number of elements to `T` must not fail.")
+            .expect("Converting number of elements to `T` must not fail!")
             .mul(*gamma)
             .round()
-            .to_usize();
+            .to_usize()
+            .expect("Converting rounded whole number to `T` must not fail!");
 
-        let mut idx: Vec<_> = (0..self.n()).map(|id| (id, self.Y()[id])).collect();
-        idx.sort_by(|(_, a), (_, b)| a.partial_cmp(b).expect("Partial cmp should not fail!"));
+        let mut idx: Vec<(usize, &T)> = self.Y().iter().enumerate().collect();
+        
+        //reverse sorting: 5, 4, 3, 2, ..
+        idx.sort_by(|(_, a), (_, b)| b.partial_cmp(a).expect("Partial cmp should not fail!")); 
 
-        todo!()
+        let (upper, lower) = idx.split_at(n_upper);
+        
+        let mut m_upper = self.clone();
+        m_upper.discard_mult(upper.iter().map(|(id, _)| *id).collect());
+        
+        let mut m_lower = self.clone();
+        m_lower.discard_mult(lower.iter().map(|(id, _)| *id).collect());
+
+        (m_upper, m_lower)
     }
 
-    fn min_quantile(&self, gamma: &T) -> (Mat<T>, Mat<T>) {
-        todo!()
+    /// (max_quantile, min_quantile) TODO: expand doc
+    fn min_quantile(&self, gamma: &T) -> (Self, Self)
+    where 
+        Self: Sized + Clone
+    {
+        #[cfg(debug_assertions)]
+        if *gamma < T::zero() || *gamma > T::one() {
+            panic!(
+                "Supplied gamma ({:?}) must be int the interval [0, 1]!",
+                gamma
+            );
+        }
+
+        let n_lower = T::from_usize(self.n())
+            .expect("Converting number of elements to `T` must not fail!")
+            .mul(*gamma)
+            .round()
+            .to_usize()
+            .expect("Converting rounded whole number to `T` must not fail!");
+
+        let mut idx: Vec<(usize, &T)> = self.Y().iter().enumerate().collect();
+        
+        //normal sorting: 2, 3, 4, 5, ..
+        idx.sort_by(|(_, a), (_, b)| a.partial_cmp(b).expect("Partial cmp should not fail!")); 
+
+        let (upper, lower) = idx.split_at(n_lower);
+        
+        let mut m_upper = self.clone();
+        m_upper.discard_mult(upper.iter().map(|(id, _)| *id).collect());
+        
+        let mut m_lower = self.clone();
+        m_lower.discard_mult(lower.iter().map(|(id, _)| *id).collect());
+
+        (m_lower, m_upper)
     }
 }
 
@@ -215,8 +262,10 @@ pub trait ObservationTransform<T>: ObservationIO<T>
 where
     T: dtype,
 {
+    fn x_prime(&self) -> impl Fn(&[T]) -> &[T];
     fn X_prime(&self) -> Mat<T>; //TODO: May need to become owned refs
-    fn Y_prime(&self) -> Vec<T>;
+    fn y_prime(&self) -> impl Fn(&T) -> T;
+    fn Y_prime(&self) -> Row<T>;
 }
 
 pub trait ObservationInputRescale<T>: ObservationIO<T>
@@ -256,8 +305,8 @@ pub struct BaseMemory<T>
 where
     T: dtype,
 {
-    X: Mat<T>, // (d, n)
-    Y: Col<T>, // (n, )
+    pub(crate) X: Mat<T>, // (d, n)
+    pub(crate) Y: Row<T>, // (n, )
 }
 
 impl<T> Default for BaseMemory<T>
@@ -267,7 +316,7 @@ where
     fn default() -> Self {
         Self {
             X: Mat::default(),
-            Y: Col::default(),
+            Y: Row::default(),
         }
     }
 }
@@ -280,7 +329,7 @@ where
         let mut X = Mat::new();
         unsafe { X.set_dims(d, 0) }
 
-        Self { X, Y: Col::new() }
+        Self { X, Y: Row::new() }
     }
 
     fn dim(&self) -> usize {
@@ -337,13 +386,13 @@ where
     }
 
     fn discard(&mut self, i: usize) {
-        // self.X.rem_cols(indices.clone());
+        self.X.remove_cols(vec![i]);
         // self.Y.rem_at_indices(indices);
         todo!()
     }
 
     fn discard_mult(&mut self, idx: Vec<usize>) {
-        // self.X.rem_cols(indices.clone());
+        self.X.remove_cols(idx);
         // self.Y.rem_at_indices(indices);
         todo!()
     }
@@ -353,7 +402,7 @@ where
         let mut X = Mat::new();
         unsafe { X.set_dims(d, 0) }
         self.X = X;
-        self.Y = Col::new();
+        self.Y = Row::new();
     }
 }
 
@@ -365,109 +414,3 @@ where
 impl<T> ObservationMean<T> for BaseMemory<T> where T: dtype {}
 
 ////////////////////////////////////////////
-
-struct LabcatMemory<T>
-where
-    T: dtype,
-{
-    base_mem: BaseMemory<T>,
-    R: Mat<T>,
-    R_inv: Mat<T>,
-    S: Mat<T>,
-    S_inv: Mat<T>,
-    X_offset: Col<T>,
-    y_offset: T,
-    y_scale: T,
-}
-
-impl<T> ObservationIO<T> for LabcatMemory<T>
-where
-    T: dtype,
-{
-    fn new(d: usize) -> Self {
-        Self {
-            base_mem: BaseMemory::new(d),
-            R: Mat::identity(d, d),
-            R_inv: Mat::identity(d, d),
-            S: Mat::identity(d, d),
-            S_inv: Mat::identity(d, d),
-            X_offset: Col::zeros(d),
-            y_offset: T::zero(),
-            y_scale: T::one(),
-        }
-    }
-
-    fn dim(&self) -> usize {
-        self.base_mem.dim()
-    }
-
-    fn n(&self) -> usize {
-        self.base_mem.n()
-    }
-
-    fn X(&self) -> &Mat<T> {
-        self.base_mem.X()
-    }
-
-    fn Y(&self) -> &[T] {
-        self.base_mem.Y()
-    }
-
-    fn append(&mut self, x: &[T], y: T) {
-        self.base_mem.append(x, y)
-    }
-
-    fn append_mult(&mut self, X: MatRef<T>, Y: &[T]) {
-        self.base_mem.append_mult(X, Y)
-    }
-
-    fn discard(&mut self, i: usize) {
-        self.base_mem.discard(i)
-    }
-
-    fn discard_mult(&mut self, idx: Vec<usize>) {
-        self.base_mem.discard_mult(idx)
-    }
-
-    fn discard_all(&mut self) {
-        self.base_mem.discard_all()
-    }
-}
-
-impl<T> ObservationMean<T> for LabcatMemory<T> where T: dtype {}
-
-impl<T> ObservationTransform<T> for LabcatMemory<T>
-where
-    T: dtype,
-{
-    fn X_prime(&self) -> Mat<T> {
-        // self.R * self.S * self.base_mem.X() + self.X_offset
-        todo!()
-    }
-
-    fn Y_prime(&self) -> Vec<T> {
-        self.base_mem
-            .Y()
-            .iter()
-            .map(|val| val.faer_mul(self.y_scale).faer_add(self.y_offset))
-            .collect()
-    }
-}
-
-impl<T> ObservationInputRescale<T> for LabcatMemory<T>
-where
-    T: dtype,
-{
-    fn rescale(&mut self, l: &[T]) {
-        self.base_mem
-            .X
-            .col_chunks_mut(1)
-            .for_each(|mut col| col.zip_apply_with_row_slice(l, |val, l| val / l));
-
-        todo!()
-    }
-
-    fn reset_scaling(&mut self) {
-        todo!()
-    }
-}
