@@ -5,9 +5,12 @@
 //Fallible
 // #![feature(try_trait_v2)]
 // #![feature(const_trait_impl)]
+
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
+#![allow(dead_code)] //TODO: Remove
 
+use anyhow::Result; //TODO: Make crate Error types
 use faer_core::{ComplexField, IdentityGroup};
 use memory::{BaseMemory, ObservationIO};
 use num_traits::{real::Real, FromPrimitive, ToPrimitive};
@@ -27,6 +30,7 @@ pub mod sqexp;
 pub mod tpe;
 pub mod uniform;
 pub mod utils;
+pub mod labcat;
 
 use bounds::Bounds;
 use doe::DoE;
@@ -58,15 +62,22 @@ where
     fn probe_variance(&self, x: &[T]) -> Option<T>;
 }
 
-pub trait Memory<T, MI, MO>
+pub trait Refit<T, M>
 where
     T: dtype,
-    MI: ObservationIO<T>,
-    MO: ObservationIO<T>,
+    M: ObservationIO<T>,
 {
-    fn refit<E>(&mut self, mem: &MI) -> Result<(), E>;
-    fn memory(&self) -> &MO;
-    fn memory_mut(&mut self) -> &mut MO;
+    // fn refit<E>(&mut self, mem: &M) -> Result<(), E>;
+    fn refit(&mut self, mem: &M) -> Result<()>;
+}
+
+pub trait Memory<T, M>
+where
+    T: dtype,
+    M: ObservationIO<T>,
+{
+    fn memory(&self) -> &M;
+    fn memory_mut(&mut self) -> &mut M;
 }
 
 pub trait AskTell<T>
