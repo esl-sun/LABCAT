@@ -30,6 +30,54 @@ where
     }
 }
 
+pub trait ColRefUtils<E> 
+where
+    E: dtype
+{
+    fn as_slice(&self) -> &[E];
+}
+
+impl<'a, E> ColRefUtils<E> for ColRef<'a, E> 
+where
+    E: dtype
+{
+    #[inline]
+    #[track_caller]
+    fn as_slice(&self) -> &[E] {
+        let nrows = self.nrows();
+        let ptr = self.as_ref().as_ptr();
+        E::faer_map(
+            ptr,
+            #[inline(always)]
+            |ptr| unsafe { core::slice::from_raw_parts(ptr, nrows) },
+        )
+    }
+}
+
+pub trait RowRefUtils<E> 
+where
+    E: dtype
+{
+    fn as_slice(&self) -> &[E];
+}
+
+impl<'a, E> RowRefUtils<E> for RowRef<'a, E> 
+where
+    E: dtype
+{
+    #[inline]
+    #[track_caller]
+    fn as_slice(&self) -> &[E] {
+        let ncols = self.ncols();
+        let ptr = self.as_ref().as_ptr();
+        E::faer_map(
+            ptr,
+            #[inline(always)]
+            |ptr| unsafe { core::slice::from_raw_parts(ptr, ncols) },
+        )
+    }
+}
+
 pub trait MatRefUtils<E>
 where
     E: dtype,
@@ -99,6 +147,7 @@ pub trait MatMutUtils<E>
 where
     E: dtype,
 {
+    //TODO: change zip_apply_* to zipped! from faer crate
     fn zip_apply_with_col_slice(&mut self, s: &[E], f: fn(E, E) -> E);
     fn zip_apply_with_row_slice(&mut self, s: &[E], f: fn(E, E) -> E);
     fn fill_fn(&mut self, f: fn(usize, usize) -> E);
