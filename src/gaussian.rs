@@ -1,5 +1,3 @@
-use std::iter::Product;
-
 use ndarray::ArrayView1;
 use num_traits::real::Real;
 use simba::scalar::RealField;
@@ -14,15 +12,16 @@ pub struct SphericalGaussian<T>
 where
     T: dtype,
 {
-    l: T,
+    dim: usize,
+    h: T,
 }
 
 impl<T> Kernel<T> for SphericalGaussian<T>
 where
-    T: dtype + Real + Product + RealField,
+    T: dtype + RealField,
 {
-    fn new(_: usize) -> Self {
-        SphericalGaussian { l: T::one() }
+    fn new(dim: usize) -> Self {
+        SphericalGaussian { dim, h: T::one() }
     }
 
     fn k(&self, p: &[T], q: &[T]) -> T {
@@ -36,9 +35,16 @@ where
 
         let dif = &p - &q;
         let two = T::one() + T::one();
-        let exponent = T::neg(T::one() / (two)) * dif.dot(&dif) / self.l; // -0.5 * ...
-        let k = T::one() / Real::sqrt(two * RealField::pi()) * Real::exp(exponent);
-        T::one() / self.l * k
+        let exponent = T::neg(T::one() / (two)) * dif.dot(&dif) / self.h; // -0.5 * ...
+        let norm_factor = T::one()
+            / Real::sqrt(Real::powi(
+                two * RealField::pi() * self.h,
+                self.dim
+                    .try_into()
+                    .expect("Converting usize to i32 should not fail!"),
+            ));
+
+        norm_factor * Real::exp(exponent)
     }
 }
 
@@ -46,12 +52,19 @@ impl<T> Bandwidth<T> for SphericalGaussian<T>
 where
     T: dtype,
 {
-    fn l(&self) -> &T {
-        &self.l
+    fn h(&self) -> &T {
+        &self.h
     }
 
-    fn update_l(&mut self, new_l: &T) {
-        self.l = *new_l
+    fn update_h(&mut self, new_h: &T) {
+        if new_h <= &T::zero() {
+            panic!(
+                "New bandwidth for spherical gaussian ({:?}) must be non-zero and positive!",
+                new_h,
+            );
+        }
+
+        self.h = *new_h
     }
 }
 

@@ -54,12 +54,12 @@ impl<T> Bandwidth<T> for SqExp<T>
 where
     T: dtype,
 {
-    fn l(&self) -> &T {
+    fn h(&self) -> &T {
         &self.l
     }
 
-    fn update_l(&mut self, new_l: &T) {
-        self.l = *new_l
+    fn update_h(&mut self, new_h: &T) {
+        self.l = *new_h
     }
 }
 

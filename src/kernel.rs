@@ -29,8 +29,8 @@ pub trait Bandwidth<T>
 where
     T: dtype,
 {
-    fn l(&self) -> &T;
-    fn update_l(&mut self, new_l: &T);
+    fn h(&self) -> &T;
+    fn update_h(&mut self, new_h: &T);
 }
 
 pub trait ARD<T>

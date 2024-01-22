@@ -1,8 +1,5 @@
-use std::iter::Product;
-
 use ndarray::{Array1, ArrayView1};
 use num_traits::real::Real;
-use simba::scalar::RealField;
 
 use crate::{
     dtype,
@@ -15,20 +12,21 @@ where
     T: dtype,
 {
     dim: usize,
-    l: T,
+    h: T,
 }
 
 impl<T> Kernel<T> for Uniform<T>
 where
-    T: dtype + Real + Product + RealField,
+    T: dtype,
 {
     fn new(d: usize) -> Self {
         Uniform {
             dim: d,
-            l: T::one(),
+            h: T::one(),
         }
     }
 
+    //TODO: Check normalization
     fn k(&self, p: &[T], q: &[T]) -> T {
         let p: ArrayView1<'_, T> = p.into();
         let q: ArrayView1<'_, T> = q.into();
@@ -40,13 +38,14 @@ where
 
         let dif: Array1<T> = &p - &q;
 
-        if dif.iter().all(|val| val.abs() <= T::one() / self.l) {
-            // all within 1/l box
-            T::one() / self.l
-                * Real::powi(
-                    T::one() / (T::one() + T::one()),
-                    self.dim.try_into().unwrap(),
-                ) // (1/l) * (0.5)^d
+        if dif.iter().all(|val| val.abs() <= T::one() / self.h) {
+            // all within 1/h box
+            Real::powi(
+                T::one() / (T::one() + T::one()) * T::one() / self.h,
+                self.dim
+                    .try_into()
+                    .expect("Conversion from usize to i32 should not fail!"),
+            ) // ((1/h) * (0.5))^d
         } else {
             T::zero()
         }
@@ -57,12 +56,12 @@ impl<T> Bandwidth<T> for Uniform<T>
 where
     T: dtype,
 {
-    fn l(&self) -> &T {
-        &self.l
+    fn h(&self) -> &T {
+        &self.h
     }
 
-    fn update_l(&mut self, new_l: &T) {
-        self.l = *new_l
+    fn update_h(&mut self, new_h: &T) {
+        self.h = *new_h
     }
 }
 
