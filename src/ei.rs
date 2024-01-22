@@ -8,7 +8,8 @@ use statrs::distribution::{Continuous, ContinuousCDF, Normal};
 use crate::{
     dtype,
     memory::{ObservationIO, ObservationMaxMin},
-    BayesianSurrogate, Memory, Surrogate, tpe::TPESurrogate,
+    tpe::TPESurrogate,
+    BayesianSurrogate, Memory, Surrogate,
 };
 
 pub trait AcqFunction<T, M, S>

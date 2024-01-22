@@ -5,7 +5,6 @@
 //Fallible
 // #![feature(try_trait_v2)]
 // #![feature(const_trait_impl)]
-
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 #![allow(dead_code)] //TODO: Remove
@@ -23,6 +22,7 @@ pub mod gaussian;
 pub mod gp;
 pub mod kde;
 pub mod kernel;
+pub mod labcat;
 pub mod lhs;
 pub mod memory;
 pub mod ndarray_utils;
@@ -30,7 +30,6 @@ pub mod sqexp;
 pub mod tpe;
 pub mod uniform;
 pub mod utils;
-pub mod labcat;
 
 use bounds::Bounds;
 use doe::DoE;
@@ -138,7 +137,7 @@ where
         todo!()
     }
 
-    fn tell(&mut self, x: &[T], y: &T) {
+    fn tell(&mut self, _: &[T], _: &T) {
         todo!()
     }
 }

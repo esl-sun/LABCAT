@@ -9,13 +9,14 @@ use num_traits::real::Real;
 use crate::kernel::{BayesianKernel, Kernel};
 use crate::memory::{ObservationIO, ObservationMean};
 use crate::ndarray_utils::{Array2Utils, ArrayView2Utils, RowColIntoNdarray};
-use crate::{dtype, BayesianSurrogate, Memory, Surrogate, Refit};
+use crate::{dtype, BayesianSurrogate, Memory, Refit, Surrogate};
 
 pub trait GPSurrogate<T, M>: Surrogate<T, M> + BayesianSurrogate<T, M>
 where
     T: dtype,
-    M: ObservationIO<T>
-{}
+    M: ObservationIO<T>,
+{
+}
 
 // #[derive(Clone, Debug)]
 pub struct GP<T, K, M>
@@ -43,7 +44,6 @@ where
         // GP { K: Array2::eye(3), alpha: Array1::zeros((3,)) }
         todo!()
     }
-
 }
 
 impl<T, K, M> Default for GP<T, K, M>
@@ -67,13 +67,14 @@ where
     }
 }
 
-impl<T, K, M> GPSurrogate<T, M> for GP<T, K, M> 
-where 
+impl<T, K, M> GPSurrogate<T, M> for GP<T, K, M>
+where
     Self: Surrogate<T, M> + BayesianSurrogate<T, M>,
     T: dtype,
     K: Kernel<T>,
-    M: ObservationIO<T>
-{}
+    M: ObservationIO<T>,
+{
+}
 
 impl<T, K, M> Surrogate<T, M> for GP<T, K, M>
 where
@@ -94,7 +95,7 @@ where
     }
 }
 
-impl<T, K, M, MI> Refit<T, M> for GP<T, K, MI> 
+impl<T, K, M, MI> Refit<T, M> for GP<T, K, MI>
 where
     T: dtype + Lapack,
     K: Kernel<T>,
@@ -128,7 +129,6 @@ where
     K: Kernel<T>,
     M: ObservationIO<T> + ObservationMean<T>,
 {
-
     fn memory(&self) -> &M {
         &self.mem
     }
@@ -146,11 +146,12 @@ where
     M: ObservationIO<T> + ObservationMean<T>,
 {
     fn probe_variance(&self, x: &[T]) -> Option<T> {
-        let k_diag = self
-            .kernel
-            .k_diag(self.memory().X().as_ref(), x);
+        let k_diag = self.kernel.k_diag(self.memory().X().as_ref(), x);
 
-        let v = self.L.solvec(&k_diag.as_ref().into_ndarray().as_1D()?).ok()?;
+        let v = self
+            .L
+            .solvec(&k_diag.as_ref().into_ndarray().as_1D()?)
+            .ok()?;
 
         let sigma = Real::sqrt(Real::abs(
             self.kernel

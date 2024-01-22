@@ -7,7 +7,8 @@ use anyhow::Result;
 
 use crate::kernel::Kernel;
 use crate::memory::{BaseMemory, ObservationIO};
-use crate::{dtype, Memory, Surrogate, Refit};
+use crate::utils::{ColRefUtils, MatRefUtils};
+use crate::{dtype, Memory, Refit, Surrogate};
 
 #[derive(Debug, Clone)]
 pub struct KDE<T, K>
@@ -55,7 +56,7 @@ where
     M: ObservationIO<T>,
 {
     fn probe(&self, x: &[T]) -> Option<T> {
-        todo!()
+        Some(self.mem.X().as_ref().cols().fold(T::zero(), |acc, col| acc + self.kernel.k(col.as_slice(), x)))
     }
 }
 

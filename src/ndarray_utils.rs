@@ -5,8 +5,8 @@ use std::{iter::Sum, ops::Neg};
 use faer::IntoNdarray;
 use faer_core::{ColMut, ColRef, Entity, Mat, RowMut, RowRef, SimpleEntity};
 use ndarray::{
-    s, Array1, Array2, ArrayBase, ArrayView1, ArrayView2, ArrayViewMut2, Axis, DataMut,
-    DataOwned, Dimension, LinalgScalar, ShapeBuilder,
+    s, Array1, Array2, ArrayBase, ArrayView1, ArrayView2, ArrayViewMut2, Axis, DataMut, DataOwned,
+    Dimension, LinalgScalar, ShapeBuilder,
 };
 use ndarray_linalg::{Scalar, UPLO};
 use num_traits::real::Real;
@@ -238,7 +238,7 @@ pub trait ArrayView1Utils<T>
 where
     T: Scalar,
 {
-    fn into_col(&self) -> ArrayView2<T>;
+    fn as_col(&self) -> ArrayView2<T>;
 }
 
 impl<T> ArrayView1Utils<T> for ArrayView1<'_, T>
@@ -246,7 +246,7 @@ where
     T: Scalar,
 {
     #[inline(always)]
-    fn into_col(&self) -> ArrayView2<T> {
+    fn as_col(&self) -> ArrayView2<T> {
         self.slice(s![.., ndarray::NewAxis])
     }
 }

@@ -2,7 +2,13 @@
 
 use faer_core::{Col, Mat, MatRef, Row};
 
-use crate::{dtype, utils::MatMutUtils, memory::{BaseMemory, ObservationIO, ObservationTransform, ObservationMean, ObservationInputRescale}};
+use crate::{
+    dtype,
+    memory::{
+        BaseMemory, ObservationIO, ObservationInputRescale, ObservationMean, ObservationTransform,
+    },
+    utils::MatMutUtils,
+};
 
 #[derive(Clone, Debug)]
 struct LabcatMemory<T>
@@ -80,7 +86,6 @@ impl<T> ObservationTransform<T> for LabcatMemory<T>
 where
     T: dtype,
 {
-
     fn x_prime(&self) -> impl Fn(&[T]) -> &[T] {
         // faer_core::col::from_slice(slice)
         // |x| faer_core::col::from_slice(x).as_slice() //TODO: FIX
@@ -99,7 +104,6 @@ where
     fn Y_prime(&self) -> Row<T> {
         Row::<T>::from_fn(self.n(), |i| self.y_prime()(&self.Y()[i]))
     }
-
 }
 
 impl<T> ObservationInputRescale<T> for LabcatMemory<T>

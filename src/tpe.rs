@@ -9,16 +9,16 @@ use ord_subset::OrdSubset;
 use crate::kde::KDE;
 use crate::kernel::Kernel;
 use crate::memory::{ObservationIO, ObservationMaxMin};
-use crate::{dtype, Memory, Surrogate, Refit};
+use crate::{dtype, Memory, Refit, Surrogate};
 
 pub trait TPESurrogate<T, M>
 where
     T: dtype,
-    M: ObservationIO<T>
+    M: ObservationIO<T>,
 {
     type Surrogate_l: Surrogate<T, M>;
     type Surrogate_g: Surrogate<T, M>;
-    
+
     fn l(&self) -> &Self::Surrogate_l;
     fn probe_l(&self, x: &[T]) -> Option<T> {
         self.l().probe(x)
@@ -28,7 +28,6 @@ where
     fn probe_g(&self, x: &[T]) -> Option<T> {
         self.g().probe(x)
     }
-
 }
 
 #[derive(Debug, Clone)]
@@ -108,7 +107,7 @@ where
     KL: Kernel<T>,
     KG: Kernel<T>,
     M: ObservationIO<T> + ObservationMaxMin<T> + Clone,
-    MS: ObservationIO<T> + ObservationMaxMin<T>
+    MS: ObservationIO<T> + ObservationMaxMin<T>,
 {
     // #[allow(refining_impl_trait)]
     fn refit(&mut self, mem: &M) -> Result<()> {
@@ -128,7 +127,7 @@ where
     KL: Kernel<T>,
     KG: Kernel<T>,
     M: ObservationIO<T> + ObservationMaxMin<T>,
-{   
+{
     fn memory(&self) -> &M {
         &self.mem
     }
