@@ -3,10 +3,7 @@
 use faer_core::{Col, Mat, MatRef, Row};
 use ord_subset::{OrdSubset, OrdSubsetIterExt};
 
-use crate::{
-    dtype,
-    utils::{MatRefUtils, MatUtils},
-};
+use crate::{dtype, utils::MatUtils};
 
 pub trait ObservationIO<T>
 where
@@ -37,7 +34,7 @@ where
         let x_max = self.X().col_as_slice(i);
         Some((i, x_max, y_max))
     }
-    
+
     fn min(&self) -> Option<(usize, &[T], &T)> {
         let (i, y_min) = self
             .Y()
@@ -50,8 +47,8 @@ where
 
     /// (max_quantile, min_quantile)  TODO: expand doc
     fn max_quantile(&self, gamma: &T) -> (Self, Self)
-    where 
-        Self: Sized + Clone
+    where
+        Self: Sized + Clone,
     {
         #[cfg(debug_assertions)]
         if *gamma < T::zero() || *gamma > T::one() {
@@ -69,15 +66,15 @@ where
             .expect("Converting rounded whole number to `T` must not fail!");
 
         let mut idx: Vec<(usize, &T)> = self.Y().iter().enumerate().collect();
-        
+
         //reverse sorting: 5, 4, 3, 2, ..
-        idx.sort_by(|(_, a), (_, b)| b.partial_cmp(a).expect("Partial cmp should not fail!")); 
+        idx.sort_by(|(_, a), (_, b)| b.partial_cmp(a).expect("Partial cmp should not fail!"));
 
         let (upper, lower) = idx.split_at(n_upper);
-        
+
         let mut m_upper = self.clone();
         m_upper.discard_mult(upper.iter().map(|(id, _)| *id).collect());
-        
+
         let mut m_lower = self.clone();
         m_lower.discard_mult(lower.iter().map(|(id, _)| *id).collect());
 
@@ -86,8 +83,8 @@ where
 
     /// (max_quantile, min_quantile) TODO: expand doc
     fn min_quantile(&self, gamma: &T) -> (Self, Self)
-    where 
-        Self: Sized + Clone
+    where
+        Self: Sized + Clone,
     {
         #[cfg(debug_assertions)]
         if *gamma < T::zero() || *gamma > T::one() {
@@ -105,15 +102,15 @@ where
             .expect("Converting rounded whole number to `T` must not fail!");
 
         let mut idx: Vec<(usize, &T)> = self.Y().iter().enumerate().collect();
-        
+
         //normal sorting: 2, 3, 4, 5, ..
-        idx.sort_by(|(_, a), (_, b)| a.partial_cmp(b).expect("Partial cmp should not fail!")); 
+        idx.sort_by(|(_, a), (_, b)| a.partial_cmp(b).expect("Partial cmp should not fail!"));
 
         let (upper, lower) = idx.split_at(n_lower);
-        
+
         let mut m_upper = self.clone();
         m_upper.discard_mult(upper.iter().map(|(id, _)| *id).collect());
-        
+
         let mut m_lower = self.clone();
         m_lower.discard_mult(lower.iter().map(|(id, _)| *id).collect());
 
@@ -155,15 +152,17 @@ where
     }
 
     fn X_mean(&self) -> Col<T> {
-        Col::<T>::from_fn(self.dim(), |j| {
-            self.X()
-                .as_ref()
-                .row_as_slice(j)
-                .iter()
-                .fold(T::zero(), |acc, elem| T::add(acc, *elem))
-                / T::from_usize(self.n())
-                    .expect("Converting number of observations to `T` must not fail.")
-        })
+        // Col::<T>::from_fn(self.dim(), |j|
+        //     self.X()
+        //         .rows()
+        //         .skip(j)
+        //         .next()
+        //         .expect("Should never exceed matrix bounds!")
+        //         .indexed_iter()
+        //         .sum() / T::from_usize(self.n())
+        //         .expect("Converting number of elements to `T` must not fail."))
+        // }
+        todo!()
     }
 }
 
@@ -406,10 +405,7 @@ where
     }
 }
 
-impl<T> ObservationMaxMin<T> for BaseMemory<T>
-where
-    T: dtype + OrdSubset,
-{}
+impl<T> ObservationMaxMin<T> for BaseMemory<T> where T: dtype + OrdSubset {}
 
 impl<T> ObservationMean<T> for BaseMemory<T> where T: dtype {}
 
