@@ -21,7 +21,8 @@ egobox-doe = "0.14.0"
 linfa = "0.7.0"
 ord_subset = "3.1.1"
 # faer = { version = "0.16.0", features = ["nalgebra", "ndarray", "nightly"] }
-faer = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-clone-debug-impls", features = ["nalgebra", "ndarray", "nightly"]}
+# faer = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-clone-debug-impls", features = ["nalgebra", "ndarray", "nightly"]}
+faer = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-clone-debug-impls", features = ["nalgebra", "ndarray"]}
 faer-core = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-clone-debug-impls"}
 lazy_static = "1.4.0"
 statrs = "0.16.0"
