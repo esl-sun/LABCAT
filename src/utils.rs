@@ -1,51 +1,48 @@
 use std::ops::IndexMut;
 
-use faer_core::{col, row, unzipped, zipped, ColRef, Mat, MatMut, MatRef, RowRef};
-use ndarray::{Array, Ix2};
+use faer_core::{
+    col, row, unzipped, zipped, AsColRef, AsMatMut, AsMatRef, AsRowRef, ColMut, ColRef, Mat,
+    RowMut, RowRef,
+};
+// use ndarray::{Array, Ix2};
 
 use crate::dtype;
 
-pub trait IntoOwnedFaer {
-    type Faer;
-    #[track_caller]
-    fn into_faer(self) -> Self::Faer;
-}
+// pub trait IntoOwnedFaer {
+//     type Faer;
+//     #[track_caller]
+//     fn into_faer(self) -> Self::Faer;
+// }
 
-impl<E> IntoOwnedFaer for Array<E, Ix2>
-where
-    E: dtype,
-{
-    type Faer = Mat<E>;
+// impl<E> IntoOwnedFaer for Array<E, Ix2>
+// where
+//     E: dtype,
+// {
+//     type Faer = Mat<E>;
 
-    #[track_caller]
-    fn into_faer(self) -> Self::Faer {
-        let nrows = self.nrows();
-        let ncols = self.ncols();
-        let strides: [isize; 2] = self.strides().try_into().unwrap();
-        let ptr = { self }.as_ptr();
-        unsafe {
-            faer_core::mat::from_raw_parts::<'_, E>(ptr, nrows, ncols, strides[0], strides[1])
-                .to_owned_mat()
-        }
-    }
-}
+//     #[track_caller]
+//     fn into_faer(self) -> Self::Faer {
+//         let nrows = self.nrows();
+//         let ncols = self.ncols();
+//         let strides: [isize; 2] = self.strides().try_into().unwrap();
+//         let ptr = { self }.as_ptr();
+//         unsafe {
+//             faer_core::mat::from_raw_parts::<'_, E>(ptr, nrows, ncols, strides[0], strides[1])
+//                 .to_owned_mat()
+//         }
+//     }
+// }
 
 pub trait ColRefUtils<E>
 where
-    E: dtype,
-{
-    fn as_slice(&self) -> &[E];
-}
-
-impl<'a, E> ColRefUtils<E> for ColRef<'a, E>
-where
+    Self: AsColRef<E>,
     E: dtype,
 {
     #[inline]
     #[track_caller]
     fn as_slice(&self) -> &[E] {
-        let nrows = self.nrows();
-        let ptr = self.as_ref().as_ptr();
+        let nrows = self.as_col_ref().nrows();
+        let ptr = self.as_col_ref().as_ptr();
         E::faer_map(
             ptr,
             #[inline(always)]
@@ -54,22 +51,18 @@ where
     }
 }
 
+impl<'a, E: dtype, M: AsColRef<E>> ColRefUtils<E> for M {}
+
 pub trait RowRefUtils<E>
 where
-    E: dtype,
-{
-    fn as_slice(&self) -> &[E];
-}
-
-impl<'a, E> RowRefUtils<E> for RowRef<'a, E>
-where
+    Self: AsRowRef<E>,
     E: dtype,
 {
     #[inline]
     #[track_caller]
     fn as_slice(&self) -> &[E] {
-        let ncols = self.ncols();
-        let ptr = self.as_ref().as_ptr();
+        let ncols = self.as_row_ref().ncols();
+        let ptr = self.as_row_ref().as_ptr();
         E::faer_map(
             ptr,
             #[inline(always)]
@@ -78,20 +71,16 @@ where
     }
 }
 
+impl<'a, E: dtype, M: AsRowRef<E>> RowRefUtils<E> for M {}
+
 pub trait MatRefUtils<E>
 where
+    Self: AsMatRef<E>,
     E: dtype,
 {
-    fn to_owned_mat(self) -> Mat<E>;
-    fn col_as_slice(&self, col: usize) -> &[E];
-    fn cols(&self) -> impl DoubleEndedIterator<Item = ColRef<'_, E>> + '_;
-    fn rows(&self) -> impl DoubleEndedIterator<Item = RowRef<'_, E>> + '_;
-}
-
-impl<'a, E: dtype> MatRefUtils<E> for MatRef<'a, E> {
-    fn to_owned_mat(self) -> Mat<E> {
+    fn to_owned_mat(&self) -> Mat<E> {
         let mut mat = Mat::new();
-        mat.copy_from(self);
+        mat.copy_from(self.as_mat_ref());
         mat
     }
 
@@ -99,105 +88,148 @@ impl<'a, E: dtype> MatRefUtils<E> for MatRef<'a, E> {
     #[inline]
     #[track_caller]
     fn col_as_slice(&self, col: usize) -> &[E] {
-        assert!(col < self.ncols());
-        let nrows = self.nrows();
-        let ptr = self.as_ref().ptr_at(0, col);
+        assert!(col < self.as_mat_ref().ncols());
+        let nrows = self.as_mat_ref().nrows();
+        let ptr = self.as_mat_ref().ptr_at(0, col);
         unsafe { core::slice::from_raw_parts(ptr, nrows) }
     }
 
     #[inline]
     #[track_caller]
     fn cols(&self) -> impl DoubleEndedIterator<Item = ColRef<'_, E>> + '_ {
-        let row_stride = self.row_stride();
+        let row_stride = self.as_mat_ref().row_stride();
 
-        (0..self.ncols()).map(move |col_id| unsafe {
+        (0..self.as_mat_ref().ncols()).map(move |col_id| unsafe {
             col::from_raw_parts(
-                self.as_ref().ptr_inbounds_at(0, col_id),
-                self.nrows(),
+                self.as_mat_ref().ptr_inbounds_at(0, col_id),
+                self.as_mat_ref().nrows(),
                 row_stride,
             )
         })
     }
 
+    #[inline]
+    #[track_caller]
     fn rows(&self) -> impl DoubleEndedIterator<Item = RowRef<'_, E>> + '_ {
-        let col_stride = self.col_stride();
+        let col_stride = self.as_mat_ref().col_stride();
 
-        (0..self.nrows()).map(move |row_id| unsafe {
+        (0..self.as_mat_ref().nrows()).map(move |row_id| unsafe {
             row::from_raw_parts(
-                self.as_ref().ptr_inbounds_at(row_id, 0),
-                self.ncols(),
+                self.as_mat_ref().ptr_inbounds_at(row_id, 0),
+                self.as_mat_ref().ncols(),
                 col_stride,
             )
         })
     }
 }
 
+impl<'a, E: dtype, M: AsMatRef<E>> MatRefUtils<E> for M {}
+
 pub trait MatMutUtils<E>
 where
+    Self: AsMatMut<E>,
     E: dtype,
 {
     //TODO: change zip_apply_* to zipped! from faer crate
-    fn zip_apply_with_col_slice(&mut self, s: &[E], f: fn(E, E) -> E);
-    fn zip_apply_with_row_slice(&mut self, s: &[E], f: fn(E, E) -> E);
-    fn fill_fn(&mut self, f: fn(usize, usize) -> E);
-    fn apply_fn(&mut self, f: fn((usize, usize), E) -> E);
-}
-
-impl<'a, E: dtype> MatMutUtils<E> for MatMut<'a, E> {
+    #[inline]
+    #[track_caller]
     fn zip_apply_with_col_slice(&mut self, s: &[E], f: fn(E, E) -> E) {
         #[cfg(debug_assertions)]
-        if self.ncols() != s.len() {
+        if self.as_mat_mut().ncols() != s.len() {
             panic!(
                 "Number of rows in self ({}) and column slice length ({}) do not match!",
-                self.nrows(),
+                self.as_mat_mut().nrows(),
                 s.len()
             );
         }
 
-        let nrows = self.nrows();
-        let ncols = self.ncols();
+        let nrows = self.as_mat_mut().nrows();
+        let ncols = self.as_mat_mut().ncols();
 
         (0..nrows)
             .flat_map(move |i| (0..ncols).map(move |j| (i, j)))
-            .for_each(|(i, j)| *self.index_mut((i, j)) = f(*self.index_mut((i, j)), s[i]));
+            .for_each(|(i, j)| {
+                *self.as_mat_mut().index_mut((i, j)) = f(*self.as_mat_mut().index_mut((i, j)), s[i])
+            });
     }
 
+    #[inline]
+    #[track_caller]
     fn zip_apply_with_row_slice(&mut self, s: &[E], f: fn(E, E) -> E) {
         #[cfg(debug_assertions)]
-        if self.ncols() != s.len() {
+        if self.as_mat_mut().ncols() != s.len() {
             panic!(
                 "Number of cols in self ({}) and row slice length ({}) do not match!",
-                self.ncols(),
+                self.as_mat_mut().ncols(),
                 s.len()
             );
         }
 
-        let nrows = self.nrows();
-        let ncols = self.ncols();
+        let nrows = self.as_mat_mut().nrows();
+        let ncols = self.as_mat_mut().ncols();
 
         (0..nrows)
             .flat_map(move |i| (0..ncols).map(move |j| (i, j)))
-            .for_each(|(i, j)| *self.index_mut((i, j)) = f(*self.index_mut((i, j)), s[j]));
+            .for_each(|(i, j)| {
+                *self.as_mat_mut().index_mut((i, j)) = f(*self.as_mat_mut().index_mut((i, j)), s[j])
+            });
     }
 
+    #[inline]
+    #[track_caller]
     fn fill_fn(&mut self, f: fn(usize, usize) -> E) {
-        let nrows = self.nrows();
-        let ncols = self.ncols();
+        let nrows = self.as_mat_mut().nrows();
+        let ncols = self.as_mat_mut().ncols();
 
         (0..nrows)
             .flat_map(move |i| (0..ncols).map(move |j| (i, j)))
-            .for_each(|(i, j)| self.write(i, j, f(i, j)));
+            .for_each(|(i, j)| self.as_mat_mut().write(i, j, f(i, j)));
     }
 
+    #[inline]
+    #[track_caller]
     fn apply_fn(&mut self, f: fn((usize, usize), E) -> E) {
-        let nrows = self.nrows();
-        let ncols = self.ncols();
+        let nrows = self.as_mat_mut().nrows();
+        let ncols = self.as_mat_mut().ncols();
 
         (0..nrows)
             .flat_map(move |i| (0..ncols).map(move |j| (i, j)))
-            .for_each(|(i, j)| *self.index_mut((i, j)) = f((i, j), *self.index_mut((i, j))));
+            .for_each(|(i, j)| {
+                *self.as_mat_mut().index_mut((i, j)) =
+                    f((i, j), *self.as_mat_mut().index_mut((i, j)))
+            });
+    }
+
+    #[inline]
+    #[track_caller]
+    fn cols_mut(&mut self) -> impl DoubleEndedIterator<Item = ColMut<'_, E>> + '_ {
+        let row_stride = self.as_mat_mut().row_stride();
+
+        (0..self.as_mat_mut().ncols()).map(move |col_id| unsafe {
+            col::from_raw_parts_mut(
+                self.as_mat_mut().ptr_inbounds_at_mut(0, col_id),
+                self.as_mat_mut().nrows(),
+                row_stride,
+            )
+        })
+    }
+
+    #[inline]
+    #[track_caller]
+    fn rows_mut(&mut self) -> impl DoubleEndedIterator<Item = RowMut<'_, E>> + '_ {
+        let col_stride = self.as_mat_mut().col_stride();
+
+        (0..self.as_mat_mut().nrows()).map(move |row_id| unsafe {
+            row::from_raw_parts_mut(
+                self.as_mat_mut().ptr_inbounds_at_mut(row_id, 0),
+                self.as_mat_mut().ncols(),
+                col_stride,
+            )
+        })
     }
 }
+
+impl<'a, E: dtype, M: AsMatMut<E>> MatMutUtils<E> for M {}
 
 pub trait MatUtils<E>
 where
