@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use faer_core::{Col, Mat, MatRef, Row};
+use faer_core::{Mat, MatRef, Row};
 use ord_subset::{OrdSubset, OrdSubsetIterExt};
 
 use crate::{dtype, utils::MatUtils};
@@ -149,20 +149,6 @@ where
                     / n,
             )
         }
-    }
-
-    fn X_mean(&self) -> Col<T> {
-        // Col::<T>::from_fn(self.dim(), |j|
-        //     self.X()
-        //         .rows()
-        //         .skip(j)
-        //         .next()
-        //         .expect("Should never exceed matrix bounds!")
-        //         .indexed_iter()
-        //         .sum() / T::from_usize(self.n())
-        //         .expect("Converting number of elements to `T` must not fail."))
-        // }
-        todo!()
     }
 }
 
@@ -408,5 +394,7 @@ where
 impl<T> ObservationMaxMin<T> for BaseMemory<T> where T: dtype + OrdSubset {}
 
 impl<T> ObservationMean<T> for BaseMemory<T> where T: dtype {}
+
+impl<T> ObservationVariance<T> for BaseMemory<T> where T: dtype {}
 
 ////////////////////////////////////////////
