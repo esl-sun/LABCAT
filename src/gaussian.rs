@@ -4,7 +4,7 @@ use simba::scalar::RealField;
 
 use crate::{
     dtype,
-    kernel::{Bandwidth, Kernel, PDF},
+    kernel::{Bandwidth, BaseKernel, PDF},
 };
 
 #[derive(Clone, Debug)]
@@ -16,7 +16,7 @@ where
     h: T,
 }
 
-impl<T> Kernel<T> for SphericalGaussian<T>
+impl<T> BaseKernel<T> for SphericalGaussian<T>
 where
     T: dtype + RealField,
 {
@@ -35,7 +35,8 @@ where
 
         let dif = &p - &q;
         let two = T::one() + T::one();
-        let exponent = T::neg(T::one() / (two)) * dif.dot(&dif) / self.h; // -0.5 * ...
+        //TODO: .. / h^2 ?
+        let exponent = T::neg(Real::recip(two)) * dif.dot(&dif) / self.h; // -0.5 * ...
         let norm_factor = T::one()
             / Real::sqrt(Real::powi(
                 two * RealField::pi() * self.h,

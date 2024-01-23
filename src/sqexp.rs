@@ -5,7 +5,7 @@ use num_traits::real::Real;
 
 use crate::{
     dtype,
-    kernel::{Bandwidth, BayesianKernel, Kernel, ARD},
+    kernel::{Bandwidth, BayesianKernel, BaseKernel, ARD},
 };
 
 #[derive(Clone, Debug)]
@@ -18,7 +18,7 @@ where
     l: T,
 }
 
-impl<T> Kernel<T> for SqExp<T>
+impl<T> BaseKernel<T> for SqExp<T>
 where
     T: dtype + Real + Product + Div<Output = T>,
 {
@@ -98,7 +98,7 @@ where
     l_inv: Array2<T>,
 }
 
-impl<T> Kernel<T> for SqExpARD<T>
+impl<T> BaseKernel<T> for SqExpARD<T>
 where
     T: dtype + Real + Product,
 {

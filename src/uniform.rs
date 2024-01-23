@@ -3,7 +3,7 @@ use num_traits::real::Real;
 
 use crate::{
     dtype,
-    kernel::{Bandwidth, Kernel, PDF},
+    kernel::{Bandwidth, BaseKernel, PDF},
 };
 
 #[derive(Clone, Debug)]
@@ -15,7 +15,7 @@ where
     h: T,
 }
 
-impl<T> Kernel<T> for Uniform<T>
+impl<T> BaseKernel<T> for Uniform<T>
 where
     T: dtype,
 {

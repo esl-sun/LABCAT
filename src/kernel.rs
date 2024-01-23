@@ -4,7 +4,7 @@ use faer_core::{MatRef, Row};
 
 use crate::{dtype, utils::MatRefUtils};
 
-pub trait Kernel<T>
+pub trait BaseKernel<T>
 where
     Self: Sized,
     T: dtype,
@@ -16,7 +16,7 @@ where
         Row::<T>::from_fn(X.ncols(), |i| self.k(X.col_as_slice(i), x))
     }
 
-    fn sum<K: Kernel<T>>(self, other: K) -> KernelSum<T, Self, K> {
+    fn sum<K: BaseKernel<T>>(self, other: K) -> KernelSum<T, Self, K> {
         KernelSum {
             data_type: PhantomData,
             kernel_1: self,
@@ -58,8 +58,8 @@ pub trait PDF {}
 pub struct KernelSum<T, K1, K2>
 where
     T: dtype,
-    K1: Kernel<T>,
-    K2: Kernel<T>,
+    K1: BaseKernel<T>,
+    K2: BaseKernel<T>,
 {
     data_type: PhantomData<T>,
     kernel_1: K1,
@@ -69,8 +69,8 @@ where
 impl<T, K1, K2> Default for KernelSum<T, K1, K2>
 where
     T: dtype,
-    K1: Kernel<T> + Default,
-    K2: Kernel<T> + Default,
+    K1: BaseKernel<T> + Default,
+    K2: BaseKernel<T> + Default,
 {
     fn default() -> Self {
         Self {
@@ -81,17 +81,17 @@ where
     }
 }
 
-impl<T, K1, K2> Kernel<T> for KernelSum<T, K1, K2>
+impl<T, K1, K2> BaseKernel<T> for KernelSum<T, K1, K2>
 where
     T: dtype,
-    K1: Kernel<T>,
-    K2: Kernel<T>,
+    K1: BaseKernel<T>,
+    K2: BaseKernel<T>,
 {
     fn new(d: usize) -> Self {
         KernelSum {
             data_type: PhantomData,
-            kernel_1: Kernel::new(d),
-            kernel_2: Kernel::new(d),
+            kernel_1: BaseKernel::new(d),
+            kernel_2: BaseKernel::new(d),
         }
     }
 
