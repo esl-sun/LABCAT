@@ -1,17 +1,74 @@
 #![allow(non_snake_case)]
 
-use faer_core::{Col, Mat, MatRef, Row};
+use faer_core::{unzipped, zipped, Col, Mat, MatRef, Row};
 
 use crate::{
-    dtype,
-    memory::{
+    bounds::Bounds, doe::DoE, dtype, ei::AcqFunction, kernel::ARD, memory::{
         BaseMemory, ObservationIO, ObservationInputRescale, ObservationMean, ObservationTransform,
-    },
-    utils::MatMutUtils,
+    }, utils::MatMutUtils, AskTell, Kernel, Memory, Refit, Surrogate
 };
 
+#[derive(Debug, Clone)]
+pub struct LABCAT<T, S, A, B, D>
+where
+    T: dtype,
+    S: Surrogate<T> + Kernel<T, KernType: ARD<T>> + Memory<T, MemType = LabcatMemory<T>>,
+    A: AcqFunction<T, S>,
+    B: Bounds<T>,
+    D: DoE<T>,
+{
+    bounds: B,
+    doe: D,
+    mem: BaseMemory<T>,
+    acq_func: A,
+    surrogate: S,
+}
+
+impl<T, S, A, B, D> LABCAT<T, S, A, B, D>
+where
+    T: dtype,
+    S: Surrogate<T> + Kernel<T, KernType: ARD<T>> + Memory<T, MemType = LabcatMemory<T>>,
+    A: AcqFunction<T, S>,
+    B: Bounds<T>,
+    D: DoE<T>,
+{
+    pub fn new() -> LABCAT<T, S, A, B, D> {
+        todo!()
+    }
+
+    fn optimize(self) {
+        // let doe = self.doe.build_DoE();
+        todo!()
+    }
+}
+
+impl<T, S, A, B, D> AskTell<T> for LABCAT<T, S, A, B, D>
+where
+    T: dtype,
+    S: Surrogate<T> + Kernel<T, KernType: ARD<T>> + Memory<T, MemType = LabcatMemory<T>> + Refit<T>,
+    A: AcqFunction<T, S>,
+    B: Bounds<T>,
+    D: DoE<T>,
+{
+    fn ask(&mut self) -> Vec<T> {
+        todo!()
+    }
+
+    fn tell(&mut self, _: &[T], _: &T) {
+        
+        let l = &self.surrogate.kernel().l();
+        let m = &mut self.surrogate.memory();
+        m.rescale(&l);
+        //....
+        self.surrogate.refit();
+        
+        todo!()
+    }
+}
+
+
 #[derive(Clone, Debug)]
-struct LabcatMemory<T>
+pub struct LabcatMemory<T>
 where
     T: dtype,
 {
@@ -111,12 +168,27 @@ where
     T: dtype,
 {
     fn rescale(&mut self, l: &[T]) {
-        self.base_mem
-            .X
-            .col_chunks_mut(1)
-            .for_each(|mut col| col.zip_apply_with_row_slice(l, |val, l| val / l));
+        #[cfg(debug_assertions)]
+        if l.len() != self.dim() {
+            panic!("Dimensions of new rescaling slice and memory do not match!");
+        }
 
-        todo!()
+        let l = faer_core::col::from_slice::<T>(l);
+
+        //TODO: Avoid ref to private member?
+        self.base_mem.X.cols_mut().for_each(|col| {
+            zipped!(col, l).for_each(|unzipped!(mut col, l)| col.write(col.read() / l.read()));
+        });
+
+        zipped!(
+            self.S.as_mut().diagonal_mut().column_vector_mut(),
+            self.S_inv.as_mut().diagonal_mut().column_vector_mut(),
+            l
+        )
+        .for_each(|unzipped!(mut S, mut S_inv, l)| {
+            S.write(S.read() * l.read());
+            S_inv.write(S_inv.read() / l.read())
+        });
     }
 
     fn reset_scaling(&mut self) {
