@@ -7,24 +7,23 @@ use statrs::distribution::{Continuous, ContinuousCDF, Normal};
 
 use crate::{
     dtype,
-    memory::{ObservationIO, ObservationMaxMin},
+    memory::ObservationMaxMin,
     tpe::TPESurrogate,
     BayesianSurrogate, Memory, Surrogate,
 };
 
-pub trait AcqFunction<T, M, S>
+pub trait AcqFunction<T, S>
 where
     T: dtype,
-    M: ObservationIO<T>,
+    S: Surrogate<T>
 {
     fn probe_acq(&self, surrogate: &S, x: &[T]) -> Option<T>;
 }
 
-pub trait AcqJacobian<T, M, S>: AcqFunction<T, M, S>
+pub trait AcqJacobian<T, S>: AcqFunction<T, S>
 where
     T: dtype,
-    M: ObservationIO<T>,
-    S: Surrogate<T, M>,
+    S: Surrogate<T>,
 {
     fn acq_jacobian(&self, surrogate: &S, x: &[T]) -> &[T];
 }
@@ -65,11 +64,10 @@ where
     }
 }
 
-impl<T, M, S> AcqFunction<T, M, S> for EI<T>
+impl<T, S> AcqFunction<T, S> for EI<T>
 where
     T: dtype + OrdSubset,
-    M: ObservationIO<T> + ObservationMaxMin<T>,
-    S: Surrogate<T, M> + BayesianSurrogate<T, M> + Memory<T, M>,
+    S: Surrogate<T> + BayesianSurrogate<T> + Memory<T, MemType: ObservationMaxMin<T>>,
 {
     fn probe_acq(&self, surrogate: &S, x: &[T]) -> Option<T> {
         let mean = surrogate.probe(x)?;
@@ -124,11 +122,10 @@ where
     }
 }
 
-impl<T, M, S> AcqFunction<T, M, S> for TPE_EI<T>
+impl<T, S> AcqFunction<T, S> for TPE_EI<T>
 where
     T: dtype + OrdSubset,
-    M: ObservationIO<T> + ObservationMaxMin<T>,
-    S: TPESurrogate<T, M> + Memory<T, M>,
+    S: Surrogate<T> + TPESurrogate<T>,
 {
     fn probe_acq(&self, surrogate: &S, x: &[T]) -> Option<T> {
         Some(surrogate.l().probe(x)? / surrogate.g().probe(x)?)

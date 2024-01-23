@@ -7,17 +7,16 @@ use anyhow::Result;
 use ord_subset::OrdSubset;
 
 use crate::kde::KDE;
-use crate::kernel::Kernel;
+use crate::kernel::BaseKernel;
 use crate::memory::{ObservationIO, ObservationMaxMin};
-use crate::{dtype, Memory, Refit, Surrogate};
+use crate::{dtype, Memory, Refit, RefitWith, Surrogate};
 
-pub trait TPESurrogate<T, M>
+pub trait TPESurrogate<T>
 where
     T: dtype,
-    M: ObservationIO<T>,
 {
-    type Surrogate_l: Surrogate<T, M>;
-    type Surrogate_g: Surrogate<T, M>;
+    type Surrogate_l: Surrogate<T>;
+    type Surrogate_g: Surrogate<T>;
 
     fn l(&self) -> &Self::Surrogate_l;
     fn probe_l(&self, x: &[T]) -> Option<T> {
@@ -34,8 +33,8 @@ where
 pub struct TPE<T, KL, KG, M>
 where
     T: dtype + OrdSubset,
-    KL: Kernel<T>,
-    KG: Kernel<T>,
+    KL: BaseKernel<T>,
+    KG: BaseKernel<T>,
     M: ObservationIO<T> + ObservationMaxMin<T>,
 {
     data_type: PhantomData<T>,
@@ -48,8 +47,8 @@ where
 impl<T, KL, KG, M> TPE<T, KL, KG, M>
 where
     T: dtype + OrdSubset,
-    KL: Kernel<T> + Default,
-    KG: Kernel<T> + Default,
+    KL: BaseKernel<T> + Default,
+    KG: BaseKernel<T> + Default,
     M: ObservationIO<T> + ObservationMaxMin<T>,
 {
     fn new(d: usize, gamma: T) -> Self {
@@ -66,8 +65,8 @@ where
 impl<T, KL, KG, M> Default for TPE<T, KL, KG, M>
 where
     T: dtype + OrdSubset,
-    KL: Kernel<T> + Default,
-    KG: Kernel<T> + Default,
+    KL: BaseKernel<T> + Default,
+    KG: BaseKernel<T> + Default,
     M: ObservationIO<T> + ObservationMaxMin<T>,
 {
     fn default() -> Self {
@@ -81,11 +80,11 @@ where
     }
 }
 
-impl<T, KL, KG, M> TPESurrogate<T, M> for TPE<T, KL, KG, M>
+impl<T, KL, KG, M> TPESurrogate<T> for TPE<T, KL, KG, M>
 where
     T: dtype + OrdSubset,
-    KL: Kernel<T>,
-    KG: Kernel<T>,
+    KL: BaseKernel<T>,
+    KG: BaseKernel<T>,
     M: ObservationIO<T> + ObservationMaxMin<T>,
 {
     type Surrogate_l = KDE<T, KL>;
@@ -101,33 +100,51 @@ where
     }
 }
 
-impl<T, KL, KG, M, MS> Refit<T, M> for TPE<T, KL, KG, MS>
+impl<T, KL, KG, MS> Refit<T> for TPE<T, KL, KG, MS>
 where
     T: dtype + OrdSubset,
-    KL: Kernel<T>,
-    KG: Kernel<T>,
-    M: ObservationIO<T> + ObservationMaxMin<T> + Clone,
+    KL: BaseKernel<T>,
+    KG: BaseKernel<T>,
     MS: ObservationIO<T> + ObservationMaxMin<T>,
 {
-    // #[allow(refining_impl_trait)]
-    fn refit(&mut self, mem: &M) -> Result<()> {
-        self.mem.discard_all();
-        self.mem.append_mult(mem.X().as_ref(), mem.Y());
-
-        let (m_l, m_g) = mem.min_quantile(&self.gamma); //TODO: match on argmax/argmin optimzation
-        self.l.refit(&m_l)?;
-        self.g.refit(&m_g)?;
+    fn refit(&mut self) -> Result<()> where Self: Memory<T> {
+        <KDE<T, KL> as Refit<T>>::refit(&mut self.l)?;
+        <KDE<T, KG> as Refit<T>>::refit(&mut self.g)?;
         Ok(())
     }
 }
 
-impl<T, KL, KG, M> Memory<T, M> for TPE<T, KL, KG, M>
+impl<T, KL, KG, M, MI> RefitWith<T, MI> for TPE<T, KL, KG, M>
 where
     T: dtype + OrdSubset,
-    KL: Kernel<T>,
-    KG: Kernel<T>,
+    KL: BaseKernel<T>,
+    KG: BaseKernel<T>,
+    M: ObservationIO<T> + ObservationMaxMin<T>,
+    MI: ObservationIO<T> + ObservationMaxMin<T> + Clone,
+{
+    
+    // #[allow(refining_impl_trait)]
+    fn refit_from(&mut self, mem: &MI) -> Result<()> {
+        self.mem.discard_all();
+        self.mem.append_mult(mem.X().as_ref(), mem.Y());
+
+        let (m_l, m_g) = mem.min_quantile(&self.gamma); //TODO: match on argmax/argmin optimzation
+        self.l.refit_from(&m_l)?;
+        self.l.refit_from(&m_g)?;
+        Ok(())
+    }
+}
+
+impl<T, KL, KG, M> Memory<T> for TPE<T, KL, KG, M>
+where
+    T: dtype + OrdSubset,
+    KL: BaseKernel<T>,
+    KG: BaseKernel<T>,
     M: ObservationIO<T> + ObservationMaxMin<T>,
 {
+    
+    type MemType = M;
+    
     fn memory(&self) -> &M {
         &self.mem
     }

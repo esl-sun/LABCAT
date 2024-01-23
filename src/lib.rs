@@ -1,7 +1,7 @@
 //#![feature(type_alias_impl_trait)]
 // #![feature(trait_alias)]
 // #![feature(min_specialization)]
-// #![feature(associated_type_bounds)]
+#![feature(associated_type_bounds)]
 //Fallible
 // #![feature(try_trait_v2)]
 // #![feature(const_trait_impl)]
@@ -11,9 +11,9 @@
 
 use anyhow::Result; //TODO: Make crate Error types
 use faer_core::{ComplexField, IdentityGroup};
+use kernel::BaseKernel;
 use memory::{BaseMemory, ObservationIO};
 use num_traits::{real::Real, FromPrimitive, ToPrimitive};
-use std::marker::PhantomData;
 
 pub mod bounds;
 pub mod doe;
@@ -45,38 +45,59 @@ impl<T> dtype for T where
 {
 }
 
-pub trait Surrogate<T, M>
+pub trait Surrogate<T>
 where
     T: dtype,
-    M: ObservationIO<T>,
+    // M: ObservationIO<T>,
 {
     fn probe(&self, x: &[T]) -> Option<T>;
 }
 
-pub trait BayesianSurrogate<T, M>: Surrogate<T, M>
+pub trait BayesianSurrogate<T>: Surrogate<T>
 where
     T: dtype,
-    M: ObservationIO<T>,
+    // M: ObservationIO<T>,
 {
     fn probe_variance(&self, x: &[T]) -> Option<T>;
 }
 
-pub trait Refit<T, M>
+pub trait Refit<T>
 where
     T: dtype,
-    M: ObservationIO<T>,
+
 {
-    // fn refit<E>(&mut self, mem: &M) -> Result<(), E>;
-    fn refit(&mut self, mem: &M) -> Result<()>;
+    // fn refit_from(&mut self, mem: &impl ObservationIO<T>) -> Result<()>;
+    fn refit(&mut self) -> Result<()> where Self: Memory<T>;
 }
 
-pub trait Memory<T, M>
+pub trait RefitWith<T, M> 
 where
     T: dtype,
     M: ObservationIO<T>,
 {
-    fn memory(&self) -> &M;
-    fn memory_mut(&mut self) -> &mut M;
+    fn refit_from(&mut self, mem: &M) -> Result<()>;
+}
+
+pub trait Memory<T>
+where
+    T: dtype,
+{
+    
+    type MemType: ObservationIO<T>;
+    
+    fn memory(&self) -> &Self::MemType;
+    fn memory_mut(&mut self) -> &mut Self::MemType;
+}
+
+pub trait Kernel<T>
+where
+    T: dtype,
+{
+    
+    type KernType: BaseKernel<T>;
+    
+    fn kernel(&self) -> &Self::KernType;
+    fn kernel_mut(&mut self) -> &mut Self::KernType;
 }
 
 pub trait AskTell<T>
@@ -88,16 +109,14 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct SMBO<T, B, D, M, S, A>
+pub struct SMBO<T, B, D, S, A>
 where
     T: dtype,
     B: Bounds<T>,
     D: DoE<T>,
-    M: ObservationIO<T>,
-    S: Surrogate<T, M>,
-    A: AcqFunction<T, M, S>,
+    S: Surrogate<T>,
+    A: AcqFunction<T, S>,
 {
-    surrogate_mem_type: PhantomData<M>,
     bounds: B,
     doe: D,
     mem: BaseMemory<T>,
@@ -105,16 +124,15 @@ where
     surrogate: S,
 }
 
-impl<T, B, D, M, S, A> SMBO<T, B, D, M, S, A>
+impl<T, B, D, S, A> SMBO<T, B, D, S, A>
 where
     T: dtype,
     B: Bounds<T>,
     D: DoE<T>,
-    S: Surrogate<T, M>,
-    M: ObservationIO<T>,
-    A: AcqFunction<T, M, S>,
+    S: Surrogate<T>,
+    A: AcqFunction<T, S>,
 {
-    pub fn new() -> SMBO<T, B, D, M, S, A> {
+    pub fn new() -> SMBO<T, B, D, S, A> {
         todo!()
     }
 
@@ -124,14 +142,13 @@ where
     }
 }
 
-impl<T, B, D, M, S, A> AskTell<T> for SMBO<T, B, D, M, S, A>
+impl<T, B, D, S, A> AskTell<T> for SMBO<T, B, D, S, A>
 where
     T: dtype,
     B: Bounds<T>,
     D: DoE<T>,
-    S: Surrogate<T, M>,
-    M: ObservationIO<T>,
-    A: AcqFunction<T, M, S>,
+    S: Surrogate<T>,
+    A: AcqFunction<T, S>,
 {
     fn ask(&mut self) -> Vec<T> {
         todo!()

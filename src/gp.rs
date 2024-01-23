@@ -6,15 +6,14 @@ use ndarray::{Array1, Array2, OwnedRepr};
 use ndarray_linalg::{CholeskyFactorized, FactorizeC, InverseC, Lapack, SolveC, UPLO};
 use num_traits::real::Real;
 
-use crate::kernel::{BayesianKernel, Kernel};
+use crate::kernel::{BayesianKernel, BaseKernel};
 use crate::memory::{ObservationIO, ObservationMean};
 use crate::ndarray_utils::{Array2Utils, ArrayView2Utils, RowColIntoNdarray};
-use crate::{dtype, BayesianSurrogate, Memory, Refit, Surrogate};
+use crate::{dtype, BayesianSurrogate, Kernel, Memory, Refit, RefitWith, Surrogate};
 
-pub trait GPSurrogate<T, M>: Surrogate<T, M> + BayesianSurrogate<T, M>
+pub trait GPSurrogate<T>: Surrogate<T> + BayesianSurrogate<T> + Kernel<T>
 where
     T: dtype,
-    M: ObservationIO<T>,
 {
 }
 
@@ -22,7 +21,7 @@ where
 pub struct GP<T, K, M>
 where
     T: dtype,
-    K: Kernel<T>,
+    K: BaseKernel<T>,
     M: ObservationIO<T>,
 {
     dim: usize,
@@ -37,7 +36,7 @@ where
 impl<T, K, M> GP<T, K, M>
 where
     T: dtype + Lapack,
-    K: Kernel<T>,
+    K: BaseKernel<T>,
     M: ObservationIO<T>,
 {
     pub fn new(_: usize, _: K) -> GP<T, K, M> {
@@ -49,13 +48,13 @@ where
 impl<T, K, M> Default for GP<T, K, M>
 where
     T: dtype + Lapack,
-    K: Kernel<T>,
+    K: BaseKernel<T>,
     M: ObservationIO<T>,
 {
     fn default() -> Self {
         Self {
             dim: 0,
-            kernel: Kernel::new(0),
+            kernel: BaseKernel::new(0),
             K: Array2::eye(0),
             Kinv: Array2::eye(0),
             L: Array2::eye(0)
@@ -67,19 +66,18 @@ where
     }
 }
 
-impl<T, K, M> GPSurrogate<T, M> for GP<T, K, M>
+impl<T, K, M> GPSurrogate<T> for GP<T, K, M>
 where
-    Self: Surrogate<T, M> + BayesianSurrogate<T, M>,
-    T: dtype,
-    K: Kernel<T>,
-    M: ObservationIO<T>,
-{
-}
+    Self: Surrogate<T> + BayesianSurrogate<T>,
+    T: dtype + Lapack,
+    K: BaseKernel<T>,
+    M: ObservationIO<T>
+{}
 
-impl<T, K, M> Surrogate<T, M> for GP<T, K, M>
+impl<T, K, M> Surrogate<T> for GP<T, K, M>
 where
     T: dtype + Lapack,
-    K: Kernel<T>,
+    K: BaseKernel<T>,
     M: ObservationIO<T> + ObservationMean<T>,
 {
     fn probe(&self, x: &[T]) -> Option<T> {
@@ -95,17 +93,14 @@ where
     }
 }
 
-impl<T, K, M, MI> Refit<T, M> for GP<T, K, MI>
+impl<T, K, M> Refit<T> for GP<T, K, M>
 where
     T: dtype + Lapack,
-    K: Kernel<T>,
-    M: ObservationIO<T>,
-    MI: ObservationIO<T> + ObservationMean<T>,
+    K: BaseKernel<T>,
+    M: ObservationIO<T> + ObservationMean<T>,
 {
-    fn refit(&mut self, mem: &M) -> Result<()> {
-        self.mem = ObservationIO::new(self.dim);
-        self.mem.append_mult(mem.X().as_ref(), mem.Y());
 
+    fn refit(&mut self) -> Result<()> where Self: Memory<T> {
         self.K = Array2::zeros((self.mem.n(), self.mem.n()))
             .map_UPLO(UPLO::Lower, |(i, j)| {
                 self.kernel
@@ -123,12 +118,30 @@ where
     }
 }
 
-impl<T, K, M> Memory<T, M> for GP<T, K, M>
+impl<T, K, M, MI> RefitWith<T, MI> for GP<T, K, M>
 where
     T: dtype + Lapack,
-    K: Kernel<T>,
+    K: BaseKernel<T>,
     M: ObservationIO<T> + ObservationMean<T>,
+    MI: ObservationIO<T> + ObservationMean<T>,
 {
+    
+    fn refit_from(&mut self, mem: &MI) -> Result<()> {
+        self.mem = ObservationIO::new(self.dim);
+        self.mem.append_mult(mem.X().as_ref(), mem.Y());
+
+        self.refit()
+    }
+}
+impl<T, K, M> Memory<T> for GP<T, K, M>
+where
+    T: dtype + Lapack,
+    K: BaseKernel<T>,
+    M: ObservationIO<T>,
+{
+
+    type MemType = M;
+
     fn memory(&self) -> &M {
         &self.mem
     }
@@ -138,11 +151,28 @@ where
     }
 }
 
-//TODO: Multiple calls to into_ndarray as as_1D, two calls to k_diag() with probe() and probe_variance()
-impl<T, K, M> BayesianSurrogate<T, M> for GP<T, K, M>
+impl<T, K, M> Kernel<T> for GP<T, K, M>
 where
     T: dtype + Lapack,
-    K: Kernel<T> + BayesianKernel<T>,
+    K: BaseKernel<T>,
+    M: ObservationIO<T>,
+{
+    type KernType = K;
+
+    fn kernel(&self) -> &Self::KernType {
+        &self.kernel
+    }
+
+    fn kernel_mut(&mut self) -> &mut Self::KernType {
+        &mut self.kernel
+    }
+}
+
+//TODO: Multiple calls to into_ndarray as as_1D, two calls to k_diag() with probe() and probe_variance()
+impl<T, K, M> BayesianSurrogate<T> for GP<T, K, M>
+where
+    T: dtype + Lapack,
+    K: BaseKernel<T> + BayesianKernel<T>,
     M: ObservationIO<T> + ObservationMean<T>,
 {
     fn probe_variance(&self, x: &[T]) -> Option<T> {
