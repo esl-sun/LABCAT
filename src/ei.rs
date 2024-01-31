@@ -6,16 +6,13 @@ use statrs::distribution::{Continuous, ContinuousCDF, Normal};
 // use rand_distr::{Normal, Distribution};
 
 use crate::{
-    dtype,
-    memory::ObservationMaxMin,
-    tpe::TPESurrogate,
-    BayesianSurrogate, Memory, Surrogate,
+    dtype, memory::ObservationMaxMin, tpe::TPESurrogate, BayesianSurrogate, Memory, Surrogate,
 };
 
 pub trait AcqFunction<T, S>
 where
     T: dtype,
-    S: Surrogate<T>
+    S: Surrogate<T>,
 {
     fn probe_acq(&self, surrogate: &S, x: &[T]) -> Option<T>;
 }
@@ -74,7 +71,7 @@ where
         let sigma = surrogate.probe_variance(x)?.sqrt();
         let min = *surrogate
             .memory()
-            .min()
+            .min_obs()
             .expect("Obeservations must not be empty!")
             .2;
 
