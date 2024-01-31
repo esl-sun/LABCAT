@@ -48,7 +48,6 @@ impl<T> dtype for T where
 pub trait Surrogate<T>
 where
     T: dtype,
-    // M: ObservationIO<T>,
 {
     fn probe(&self, x: &[T]) -> Option<T>;
 }
@@ -56,7 +55,6 @@ where
 pub trait BayesianSurrogate<T>: Surrogate<T>
 where
     T: dtype,
-    // M: ObservationIO<T>,
 {
     fn probe_variance(&self, x: &[T]) -> Option<T>;
 }
@@ -64,13 +62,14 @@ where
 pub trait Refit<T>
 where
     T: dtype,
-
 {
     // fn refit_from(&mut self, mem: &impl ObservationIO<T>) -> Result<()>;
-    fn refit(&mut self) -> Result<()> where Self: Memory<T>;
+    fn refit(&mut self) -> Result<()>
+    where
+        Self: Memory<T>;
 }
 
-pub trait RefitWith<T, M> 
+pub trait RefitWith<T, M>
 where
     T: dtype,
     M: ObservationIO<T>,
@@ -82,9 +81,8 @@ pub trait Memory<T>
 where
     T: dtype,
 {
-    
     type MemType: ObservationIO<T>;
-    
+
     fn memory(&self) -> &Self::MemType;
     fn memory_mut(&mut self) -> &mut Self::MemType;
 }
@@ -93,9 +91,8 @@ pub trait Kernel<T>
 where
     T: dtype,
 {
-    
     type KernType: BaseKernel<T>;
-    
+
     fn kernel(&self) -> &Self::KernType;
     fn kernel_mut(&mut self) -> &mut Self::KernType;
 }

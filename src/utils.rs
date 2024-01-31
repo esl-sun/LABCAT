@@ -51,7 +51,7 @@ where
     }
 }
 
-impl<'a, E: dtype, M: AsColRef<E>> ColRefUtils<E> for M {}
+impl<E: dtype, M: AsColRef<E>> ColRefUtils<E> for M {}
 
 pub trait RowRefUtils<E>
 where
@@ -71,7 +71,7 @@ where
     }
 }
 
-impl<'a, E: dtype, M: AsRowRef<E>> RowRefUtils<E> for M {}
+impl<E: dtype, M: AsRowRef<E>> RowRefUtils<E> for M {}
 
 pub trait MatRefUtils<E>
 where
@@ -123,7 +123,7 @@ where
     }
 }
 
-impl<'a, E: dtype, M: AsMatRef<E>> MatRefUtils<E> for M {}
+impl<E: dtype, M: AsMatRef<E>> MatRefUtils<E> for M {}
 
 pub trait MatMutUtils<E>
 where
@@ -229,7 +229,7 @@ where
     }
 }
 
-impl<'a, E: dtype, M: AsMatMut<E>> MatMutUtils<E> for M {}
+impl<E: dtype, M: AsMatMut<E>> MatMutUtils<E> for M {}
 
 pub trait MatUtils<E>
 where

@@ -107,7 +107,10 @@ where
     KG: BaseKernel<T>,
     MS: ObservationIO<T> + ObservationMaxMin<T>,
 {
-    fn refit(&mut self) -> Result<()> where Self: Memory<T> {
+    fn refit(&mut self) -> Result<()>
+    where
+        Self: Memory<T>,
+    {
         <KDE<T, KL> as Refit<T>>::refit(&mut self.l)?;
         <KDE<T, KG> as Refit<T>>::refit(&mut self.g)?;
         Ok(())
@@ -122,7 +125,6 @@ where
     M: ObservationIO<T> + ObservationMaxMin<T>,
     MI: ObservationIO<T> + ObservationMaxMin<T> + Clone,
 {
-    
     // #[allow(refining_impl_trait)]
     fn refit_from(&mut self, mem: &MI) -> Result<()> {
         self.mem.discard_all();
@@ -142,9 +144,8 @@ where
     KG: BaseKernel<T>,
     M: ObservationIO<T> + ObservationMaxMin<T>,
 {
-    
     type MemType = M;
-    
+
     fn memory(&self) -> &M {
         &self.mem
     }

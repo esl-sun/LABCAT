@@ -71,7 +71,10 @@ where
     K: BaseKernel<T>,
 {
     //TODO: Add warning that refitting a BaseMemory KDE does nothing
-    fn refit(&mut self) -> Result<()> where Self: Memory<T> {
+    fn refit(&mut self) -> Result<()>
+    where
+        Self: Memory<T>,
+    {
         Ok(())
     }
 }
@@ -80,9 +83,8 @@ impl<T, K, M> RefitWith<T, M> for KDE<T, K>
 where
     T: dtype,
     K: BaseKernel<T>,
-    M: ObservationIO<T>
+    M: ObservationIO<T>,
 {
-    
     fn refit_from(&mut self, mem: &M) -> Result<()> {
         self.mem.discard_all();
         self.mem.append_mult(mem.X().as_ref(), mem.Y());
@@ -96,7 +98,7 @@ where
     K: BaseKernel<T>,
 {
     type MemType = BaseMemory<T>;
-    
+
     fn memory(&self) -> &BaseMemory<T> {
         &self.mem
     }

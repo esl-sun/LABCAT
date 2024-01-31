@@ -5,7 +5,7 @@ use num_traits::real::Real;
 
 use crate::{
     dtype,
-    kernel::{Bandwidth, BayesianKernel, BaseKernel, ARD},
+    kernel::{Bandwidth, BaseKernel, BayesianKernel, ARD},
 };
 
 #[derive(Clone, Debug)]
