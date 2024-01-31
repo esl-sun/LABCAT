@@ -25,7 +25,7 @@ pub trait ObservationMaxMin<T>: ObservationIO<T>
 where
     T: dtype + OrdSubset,
 {
-    fn max(&self) -> Option<(usize, &[T], &T)> {
+    fn max_obs(&self) -> Option<(usize, &[T], &T)> {
         let (i, y_max) = self
             .Y()
             .iter()
@@ -35,7 +35,7 @@ where
         Some((i, x_max, y_max))
     }
 
-    fn min(&self) -> Option<(usize, &[T], &T)> {
+    fn min_obs(&self) -> Option<(usize, &[T], &T)> {
         let (i, y_min) = self
             .Y()
             .iter()
@@ -251,6 +251,7 @@ where
     fn X_prime(&self) -> Mat<T>; //TODO: May need to become owned refs
     fn y_prime(&self) -> impl Fn(&T) -> T;
     fn Y_prime(&self) -> Row<T>;
+    fn reset_transform(&mut self);
 }
 
 pub trait ObservationInputRescale<T>: ObservationIO<T>
@@ -258,31 +259,34 @@ where
     T: dtype,
 {
     fn rescale(&mut self, l: &[T]);
-    fn reset_scaling(&mut self);
 }
 
 pub trait ObservationOutputRescale<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn rescale(&mut self, l: T);
-    fn reset_scaling(&mut self);
+    fn rescale(&mut self, l: &T);
 }
 
 pub trait ObservationInputRecenter<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn recenter(&mut self, l: &[T]);
-    fn reset_center(&mut self);
+    fn recenter(&mut self, cen: &[T]);
 }
 
 pub trait ObservationOutputRecenter<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn recenter(&mut self, l: T);
-    fn reset_center(&mut self);
+    fn recenter(&mut self, cen: &T);
+}
+
+pub trait ObservationInputRotate<T>: ObservationIO<T>
+where
+    T: dtype,
+{
+    fn rotate(&mut self);
 }
 
 #[derive(Clone, Debug)]
