@@ -8,7 +8,7 @@ use anyhow::Result;
 use crate::kernel::BaseKernel;
 use crate::memory::{BaseMemory, ObservationIO};
 use crate::utils::{ColRefUtils, MatRefUtils};
-use crate::{dtype, Memory, Refit, RefitWith, Surrogate};
+use crate::{dtype, Memory, Refit, RefitWith, SurrogateIO};
 
 #[derive(Debug, Clone)]
 pub struct KDE<T, K>
@@ -35,25 +35,25 @@ where
     }
 }
 
-impl<T, K> KDE<T, K>
+// impl<T, K> KDE<T, K>
+// where
+//     T: dtype,
+//     K: BaseKernel<T>,
+// {}
+
+impl<T, K> SurrogateIO<T> for KDE<T, K>
 where
     T: dtype,
     K: BaseKernel<T>,
 {
-    pub fn new(d: usize) -> KDE<T, K> {
-        KDE {
+    fn new(d: usize) -> Self {
+        Self {
             data_type: PhantomData,
             mem: BaseMemory::new(d),
             kernel: BaseKernel::new(d),
         }
     }
-}
-
-impl<T, K> Surrogate<T> for KDE<T, K>
-where
-    T: dtype,
-    K: BaseKernel<T>,
-{
+    
     fn probe(&self, x: &[T]) -> Option<T> {
         Some(
             self.mem

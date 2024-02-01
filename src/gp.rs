@@ -9,9 +9,9 @@ use num_traits::real::Real;
 use crate::kernel::{BaseKernel, BayesianKernel};
 use crate::memory::{ObservationIO, ObservationMean};
 use crate::ndarray_utils::{Array2Utils, ArrayView2Utils, RowColIntoNdarray};
-use crate::{dtype, BayesianSurrogate, Kernel, Memory, Refit, RefitWith, Surrogate};
+use crate::{dtype, BayesianSurrogateIO, Kernel, Memory, Refit, RefitWith, SurrogateIO};
 
-pub trait GPSurrogate<T>: Surrogate<T> + BayesianSurrogate<T> + Kernel<T>
+pub trait GPSurrogate<T>: SurrogateIO<T> + BayesianSurrogateIO<T> + Kernel<T>
 where
     T: dtype,
 {
@@ -33,54 +33,54 @@ where
     mem: M,
 }
 
-impl<T, K, M> GP<T, K, M>
-where
-    T: dtype + Lapack,
-    K: BaseKernel<T>,
-    M: ObservationIO<T>,
-{
-    pub fn new(_: usize, _: K) -> GP<T, K, M> {
-        // GP { K: Array2::eye(3), alpha: Array1::zeros((3,)) }
-        todo!()
-    }
-}
+// impl<T, K, M> GP<T, K, M>
+// where
+//     T: dtype + Lapack,
+//     K: BaseKernel<T>,
+//     M: ObservationIO<T>,
+// {}
 
 impl<T, K, M> Default for GP<T, K, M>
 where
+    Self: SurrogateIO<T>,
     T: dtype + Lapack,
     K: BaseKernel<T>,
     M: ObservationIO<T>,
 {
     fn default() -> Self {
-        Self {
-            dim: 0,
-            kernel: BaseKernel::new(0),
-            K: Array2::eye(0),
-            Kinv: Array2::eye(0),
-            L: Array2::eye(0)
-                .factorizec(UPLO::Lower)
-                .expect("Should never fail during init."),
-            alpha: Array1::zeros((0,)),
-            mem: ObservationIO::new(0),
-        }
+        Self::new(0)
     }
 }
 
 impl<T, K, M> GPSurrogate<T> for GP<T, K, M>
 where
-    Self: Surrogate<T> + BayesianSurrogate<T>,
+    Self: SurrogateIO<T> + BayesianSurrogateIO<T>,
     T: dtype + Lapack,
     K: BaseKernel<T>,
     M: ObservationIO<T>,
 {
 }
 
-impl<T, K, M> Surrogate<T> for GP<T, K, M>
+impl<T, K, M> SurrogateIO<T> for GP<T, K, M>
 where
     T: dtype + Lapack,
     K: BaseKernel<T>,
     M: ObservationIO<T> + ObservationMean<T>,
 {
+    fn new(d: usize) -> Self {
+        Self {
+            dim: d,
+            kernel: BaseKernel::new(d),
+            K: Array2::eye(d),
+            Kinv: Array2::eye(d),
+            L: Array2::eye(d)
+                .factorizec(UPLO::Lower)
+                .expect("Should never fail during init."),
+            alpha: Array1::zeros((d,)),
+            mem: M::new(d),
+        }
+    }
+
     fn probe(&self, x: &[T]) -> Option<T> {
         Some(
             self.kernel
@@ -135,6 +135,7 @@ where
         self.refit()
     }
 }
+
 impl<T, K, M> Memory<T> for GP<T, K, M>
 where
     T: dtype + Lapack,
@@ -170,7 +171,7 @@ where
 }
 
 //TODO: Multiple calls to into_ndarray as as_1D, two calls to k_diag() with probe() and probe_variance()
-impl<T, K, M> BayesianSurrogate<T> for GP<T, K, M>
+impl<T, K, M> BayesianSurrogateIO<T> for GP<T, K, M>
 where
     T: dtype + Lapack,
     K: BaseKernel<T> + BayesianKernel<T>,

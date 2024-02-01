@@ -45,14 +45,15 @@ impl<T> dtype for T where
 {
 }
 
-pub trait Surrogate<T>
+pub trait SurrogateIO<T>
 where
     T: dtype,
 {
+    fn new(d: usize) -> Self;
     fn probe(&self, x: &[T]) -> Option<T>;
 }
 
-pub trait BayesianSurrogate<T>: Surrogate<T>
+pub trait BayesianSurrogateIO<T>: SurrogateIO<T>
 where
     T: dtype,
 {
@@ -75,6 +76,16 @@ where
     M: ObservationIO<T>,
 {
     fn refit_from(&mut self, mem: &M) -> Result<()>;
+}
+
+pub trait Surrogate<T>
+where
+    T: dtype,
+{
+    type SurType: SurrogateIO<T>;
+
+    fn surrogate(&self) -> &Self::SurType;
+    fn surrogate_mut(&mut self) -> &mut Self::SurType;
 }
 
 pub trait Memory<T>
@@ -111,7 +122,7 @@ where
     T: dtype,
     B: Bounds<T>,
     D: DoE<T>,
-    S: Surrogate<T>,
+    S: SurrogateIO<T>,
     A: AcqFunction<T, S>,
 {
     bounds: B,
@@ -126,7 +137,7 @@ where
     T: dtype,
     B: Bounds<T>,
     D: DoE<T>,
-    S: Surrogate<T>,
+    S: SurrogateIO<T>,
     A: AcqFunction<T, S>,
 {
     pub fn new() -> SMBO<T, B, D, S, A> {
@@ -144,7 +155,7 @@ where
     T: dtype,
     B: Bounds<T>,
     D: DoE<T>,
-    S: Surrogate<T>,
+    S: SurrogateIO<T>,
     A: AcqFunction<T, S>,
 {
     fn ask(&mut self) -> Vec<T> {

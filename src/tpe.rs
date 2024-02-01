@@ -9,14 +9,14 @@ use ord_subset::OrdSubset;
 use crate::kde::KDE;
 use crate::kernel::BaseKernel;
 use crate::memory::{ObservationIO, ObservationMaxMin};
-use crate::{dtype, Memory, Refit, RefitWith, Surrogate};
+use crate::{dtype, Memory, Refit, RefitWith, SurrogateIO};
 
 pub trait TPESurrogate<T>
 where
     T: dtype,
 {
-    type Surrogate_l: Surrogate<T>;
-    type Surrogate_g: Surrogate<T>;
+    type Surrogate_l: SurrogateIO<T>;
+    type Surrogate_g: SurrogateIO<T>;
 
     fn l(&self) -> &Self::Surrogate_l;
     fn probe_l(&self, x: &[T]) -> Option<T> {
