@@ -2,9 +2,15 @@ use faer::{IntoFaer, IntoNdarray, Mat};
 use faer_core::{Col, Row};
 use labcat::bounds::ContinuousBounds;
 use labcat::kernel::{BaseKernel, KernelSum};
+use labcat::labcat::LabcatMemory;
 use labcat::lhs::LHS;
-use labcat::memory::{BaseMemory, ObservationIO};
-use labcat::AskTell;
+use labcat::memory::{
+    BaseMemory, ObservationIO, ObservationInputRecenter, ObservationInputRescale,
+    ObservationInputRotate, ObservationOutputRecenter, ObservationOutputRescale,
+    ObservationTransform,
+};
+use labcat::sqexp::SqExp;
+use labcat::{AskTell, RefitWith, SurrogateIO};
 use labcat::{ei::EI, gp::GP, kde::KDE, sqexp::SqExpARD, SMBO};
 // use faer_core::ColIndex;
 // use faer_core::Mat;
@@ -93,7 +99,8 @@ fn main() {
     // });
 
     i.rows_mut().for_each(|col| {
-        faer_core::zipped!(col, l).for_each(|faer_core::unzipped!(mut col, l)| col.write(col.read() + l.read()));
+        faer_core::zipped!(col, l)
+            .for_each(|faer_core::unzipped!(mut col, l)| col.write(col.read() + l.read()));
     });
 
     dbg!(i.as_ref().into_ndarray());
@@ -105,13 +112,36 @@ fn main() {
     // let X = mem.X().into();
     // dbg!(test(X.into()));
 
-    let mut smbo = SMBO::<
-        f64,
-        ContinuousBounds,
-        LHS<f64>,
-        GP<f64, SqExpARD<f64>, BaseMemory<f64>>,
-        EI<f64>,
-    >::new();
+    // let mut smbo = SMBO::<
+    //     f64,
+    //     ContinuousBounds,
+    //     LHS<f64>,
+    //     GP<f64, SqExpARD<f64>, BaseMemory<f64>>,
+    //     EI<f64>,
+    // >::new();
 
-    smbo.ask();
+    // smbo.ask();
+
+    let mut mem = LabcatMemory::<f64>::new(2);
+    mem.append(&[1.0, 2.0], &1.0);
+    mem.append(&[3.0, 4.0], &2.0);
+    mem.append(&[5.0, 6.0], &3.0);
+    mem.append(&[7.0, 8.0], &4.0);
+
+    mem.recenter_X(&[1.0, 2.0]);
+    mem.rescale_X(&[2.0, 4.0]);
+    mem.rotate_X();
+
+    dbg!(mem.X());
+    dbg!(mem.X_prime());
+
+    mem.recenter_Y(&1.0);
+    mem.rescale_Y(&3.0);
+
+    dbg!(mem.Y());
+    dbg!(mem.Y_prime());
+
+    let mut kde = KDE::<f64, SqExpARD<f64>>::new(2);
+    kde.refit_from(&mem).unwrap();
+    dbg!(kde.probe(&[0.0, 0.0]));
 }
