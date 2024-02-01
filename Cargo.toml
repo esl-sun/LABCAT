@@ -26,6 +26,7 @@ faer = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-
 faer-core = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-clone-debug-impls"}
 lazy_static = "1.4.0"
 statrs = "0.16.0"
+itertools = "0.12.1"
 # faer-core = "0.16.0"
 # log = "0.4.20"
 
