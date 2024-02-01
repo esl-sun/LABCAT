@@ -140,6 +140,10 @@ where
         &self.l
     }
 
+    fn dim(&self) -> usize {
+        self.dim
+    }
+
     fn update_l(&mut self, new_l: &[T]) {
         // #[cfg(debug_assertions)] TODO: Add unchecked ver?
         if new_l.len() != self.dim {
@@ -151,6 +155,10 @@ where
             .iter_mut()
             .zip(self.l.iter())
             .for_each(|(old, new)| *old = T::one() / new.powi(2));
+    }
+
+    fn whiten_l(&mut self) {
+        self.update_l(&vec![T::one(); self.dim()])
     }
 }
 

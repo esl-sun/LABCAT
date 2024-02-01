@@ -38,7 +38,9 @@ where
     T: dtype,
 {
     fn l(&self) -> &[T];
+    fn dim(&self) -> usize;
     fn update_l(&mut self, new_l: &[T]);
+    fn whiten_l(&mut self);
 }
 
 pub trait BayesianKernel<T>
