@@ -6,13 +6,13 @@ use statrs::distribution::{Continuous, ContinuousCDF, Normal};
 // use rand_distr::{Normal, Distribution};
 
 use crate::{
-    dtype, memory::ObservationMaxMin, tpe::TPESurrogate, BayesianSurrogate, Memory, Surrogate,
+    dtype, memory::ObservationMaxMin, tpe::TPESurrogate, BayesianSurrogateIO, Memory, SurrogateIO,
 };
 
 pub trait AcqFunction<T, S>
 where
     T: dtype,
-    S: Surrogate<T>,
+    S: SurrogateIO<T>,
 {
     fn probe_acq(&self, surrogate: &S, x: &[T]) -> Option<T>;
 }
@@ -20,7 +20,7 @@ where
 pub trait AcqJacobian<T, S>: AcqFunction<T, S>
 where
     T: dtype,
-    S: Surrogate<T>,
+    S: SurrogateIO<T>,
 {
     fn acq_jacobian(&self, surrogate: &S, x: &[T]) -> &[T];
 }
@@ -64,16 +64,15 @@ where
 impl<T, S> AcqFunction<T, S> for EI<T>
 where
     T: dtype + OrdSubset,
-    S: Surrogate<T> + BayesianSurrogate<T> + Memory<T, MemType: ObservationMaxMin<T>>,
+    S: SurrogateIO<T> + BayesianSurrogateIO<T> + Memory<T, MemType: ObservationMaxMin<T>>,
 {
     fn probe_acq(&self, surrogate: &S, x: &[T]) -> Option<T> {
         let mean = surrogate.probe(x)?;
         let sigma = surrogate.probe_variance(x)?.sqrt();
         let min = *surrogate
             .memory()
-            .min_obs()
-            .expect("Obeservations must not be empty!")
-            .2;
+            .min_y()
+            .expect("Obeservations must not be empty!");
 
         let z = (min - mean - self.xi) / sigma;
 
@@ -122,7 +121,7 @@ where
 impl<T, S> AcqFunction<T, S> for TPE_EI<T>
 where
     T: dtype + OrdSubset,
-    S: Surrogate<T> + TPESurrogate<T>,
+    S: SurrogateIO<T> + TPESurrogate<T>,
 {
     fn probe_acq(&self, surrogate: &S, x: &[T]) -> Option<T> {
         Some(surrogate.l().probe(x)? / surrogate.g().probe(x)?)

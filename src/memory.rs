@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use faer_core::{Mat, MatRef, Row};
+use faer_core::{AsMatRef, Mat, MatRef, Row};
 use ord_subset::{OrdSubset, OrdSubsetIterExt};
 
 use crate::{dtype, utils::MatUtils};
@@ -14,7 +14,7 @@ where
     fn n(&self) -> usize;
     fn X(&self) -> &Mat<T>;
     fn Y(&self) -> &[T];
-    fn append(&mut self, x: &[T], y: T);
+    fn append(&mut self, x: &[T], y: &T);
     fn append_mult(&mut self, X: MatRef<T>, Y: &[T]);
     fn discard(&mut self, i: usize);
     fn discard_mult(&mut self, idx: Vec<usize>);
@@ -25,6 +25,8 @@ pub trait ObservationMaxMin<T>: ObservationIO<T>
 where
     T: dtype + OrdSubset,
 {
+    #[inline]
+    #[track_caller]
     fn max_obs(&self) -> Option<(usize, &[T], &T)> {
         let (i, y_max) = self
             .Y()
@@ -35,6 +37,8 @@ where
         Some((i, x_max, y_max))
     }
 
+    #[inline]
+    #[track_caller]
     fn min_obs(&self) -> Option<(usize, &[T], &T)> {
         let (i, y_min) = self
             .Y()
@@ -45,7 +49,45 @@ where
         Some((i, x_min, y_min))
     }
 
+    #[inline]
+    #[track_caller]
+    fn max_id(&self) -> Option<usize> {
+        Some(self.max_obs()?.0)
+    }
+
+    #[inline]
+    #[track_caller]
+    fn min_id(&self) -> Option<usize> {
+        Some(self.min_obs()?.0)
+    }
+
+    #[inline]
+    #[track_caller]
+    fn max_x(&self) -> Option<&[T]> {
+        Some(self.max_obs()?.1)
+    }
+
+    #[inline]
+    #[track_caller]
+    fn min_x(&self) -> Option<&[T]> {
+        Some(self.min_obs()?.1)
+    }
+
+    #[inline]
+    #[track_caller]
+    fn max_y(&self) -> Option<&T> {
+        Some(self.max_obs()?.2)
+    }
+
+    #[inline]
+    #[track_caller]
+    fn min_y(&self) -> Option<&T> {
+        Some(self.min_obs()?.2)
+    }
+
     /// (max_quantile, min_quantile)  TODO: expand doc
+    #[inline]
+    #[track_caller]
     fn max_quantile(&self, gamma: &T) -> (Self, Self)
     where
         Self: Sized + Clone,
@@ -82,6 +124,8 @@ where
     }
 
     /// (max_quantile, min_quantile) TODO: expand doc
+    #[inline]
+    #[track_caller]
     fn min_quantile(&self, gamma: &T) -> (Self, Self)
     where
         Self: Sized + Clone,
@@ -135,6 +179,8 @@ where
     /// **Panics** if `T::from_usize()` fails to convert the number of observations.
     ///
     /// [arithmetic mean]: https://en.wikipedia.org/wiki/Arithmetic_mean
+    #[inline]
+    #[track_caller]
     fn Y_mean(&self) -> Option<T> {
         let n = self.Y().len();
         if n == 0 {
@@ -184,6 +230,8 @@ where
     /// and `n` is the length of the array.
     ///
     /// **Panics** if `ddof` is less than zero or greater than `n`
+    #[inline]
+    #[track_caller]
     fn Y_var(&self, ddof: T) -> T {
         let zero = T::zero();
         let n = T::from_usize(self.Y().len())
@@ -238,6 +286,8 @@ where
     /// and `n` is the length of the array.
     ///
     /// **Panics** if `ddof` is less than zero or greater than `n`
+    #[inline]
+    #[track_caller]
     fn Y_std(&self, ddof: T) -> T {
         self.Y_var(ddof).sqrt()
     }
@@ -258,35 +308,35 @@ pub trait ObservationInputRescale<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn rescale(&mut self, l: &[T]);
+    fn rescale_X(&mut self, l: &[T]);
 }
 
 pub trait ObservationOutputRescale<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn rescale(&mut self, l: &T);
+    fn rescale_Y(&mut self, l: &T);
 }
 
 pub trait ObservationInputRecenter<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn recenter(&mut self, cen: &[T]);
+    fn recenter_X(&mut self, cen: &[T]);
 }
 
 pub trait ObservationOutputRecenter<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn recenter(&mut self, cen: &T);
+    fn recenter_Y(&mut self, cen: &T);
 }
 
 pub trait ObservationInputRotate<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn rotate(&mut self);
+    fn rotate_X(&mut self);
 }
 
 #[derive(Clone, Debug)]
@@ -296,6 +346,12 @@ where
 {
     pub(crate) X: Mat<T>, // (d, n)
     pub(crate) Y: Row<T>, // (n, )
+}
+
+impl<T: dtype> BaseMemory<T> {
+    fn from(X: impl AsMatRef<T>, Y: &[T]) -> Self {
+        Self { X: X.as_mat_ref().to_owned(), Y: faer_core::row::from_slice::<T>(Y).to_owned() }
+    }
 }
 
 impl<T> Default for BaseMemory<T>
@@ -337,7 +393,7 @@ where
         self.Y.as_slice()
     }
 
-    fn append(&mut self, x: &[T], y: T) {
+    fn append(&mut self, x: &[T], y: &T) {
         #[cfg(debug_assertions)]
         if x.len() != self.dim() {
             panic!("Dimensions of new input and memory do not match!");
@@ -345,7 +401,7 @@ where
 
         let old_n = self.X.ncols();
 
-        self.Y.resize_with(old_n + 1, |_| y);
+        self.Y.resize_with(old_n + 1, |_| *y);
         self.X.resize_with(self.dim(), old_n + 1, |i, _| x[i]);
     }
 
