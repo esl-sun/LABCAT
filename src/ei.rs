@@ -6,7 +6,7 @@ use statrs::distribution::{Continuous, ContinuousCDF, Normal};
 // use rand_distr::{Normal, Distribution};
 
 use crate::{
-    dtype, memory::ObservationMaxMin, tpe::TPESurrogate, BayesianSurrogateIO, Memory, SurrogateIO,
+    dtype, gp::GPSurrogate, memory::ObservationMaxMin, tpe::TPESurrogate, BayesianSurrogateIO, Memory, SurrogateIO
 };
 
 pub trait AcqFunction<T, S>
@@ -22,7 +22,7 @@ where
     T: dtype,
     S: SurrogateIO<T>,
 {
-    fn acq_jacobian(&self, surrogate: &S, x: &[T]) -> &[T];
+    fn acq_jacobian(&self, surrogate: &S, x: &[T]) -> Option<&[T]>;
 }
 
 lazy_static! {
@@ -87,7 +87,33 @@ where
     }
 }
 
-// impl AcqJacobian for EI<T>
+impl<T, S> AcqJacobian<T, S> for EI<T>
+where
+    T: dtype + OrdSubset,
+    S: GPSurrogate<T> + Memory<T, MemType: ObservationMaxMin<T>>,
+{
+    fn acq_jacobian(&self, surrogate: &S, x: &[T]) -> Option<&[T]> {
+        
+        let mean = surrogate.probe(x)?;
+        let sigma = surrogate.probe_variance(x)?.sqrt();
+        let min = *surrogate
+            .memory()
+            .min_y()
+            .expect("Obeservations must not be empty!");
+
+        let z = (min - mean - self.xi) / sigma;
+
+        let cdf =
+            T::from_f64(NORMAL.cdf(T::to_f64(&z).expect("Converting `T` to f64 must not fail.")))
+                .expect("Converting f64 to `T` must not fail.");
+        let pdf =
+            T::from_f64(NORMAL.pdf(T::to_f64(&z).expect("Converting `T` to f64 must not fail.")))
+                .expect("Converting f64 to `T` must not fail.");
+
+        // let dalpha
+        todo!()
+    }
+}
 
 pub struct TPE_EI<T>
 where
