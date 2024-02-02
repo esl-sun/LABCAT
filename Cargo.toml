@@ -17,12 +17,10 @@ ndarray-rand = "0.14.0"
 nshare = { version = "0.9.0", features = ["nalgebra", "ndarray"] }
 num-traits = "0.2.15"
 simba = "0.8.1"
-egobox-doe = "0.14.0"
+egobox-doe = "0.15.0"
 linfa = "0.7.0"
 ord_subset = "3.1.1"
-# faer = { version = "0.16.0", features = ["nalgebra", "ndarray", "nightly"] }
 faer = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-clone-debug-impls", features = ["nalgebra", "ndarray", "nightly"]}
-# faer = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-clone-debug-impls", features = ["nalgebra", "ndarray"]}
 faer-core = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-clone-debug-impls"}
 lazy_static = "1.4.0"
 statrs = "0.16.0"
