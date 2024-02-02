@@ -3,10 +3,9 @@
 use std::{iter::Sum, ops::Neg};
 
 use faer::IntoNdarray;
-use faer_core::{ColMut, ColRef, Entity, Mat, RowMut, RowRef, SimpleEntity};
+use faer_core::{Col, ColMut, ColRef, Entity, Mat, Row, RowMut, RowRef, SimpleEntity};
 use ndarray::{
-    s, Array1, Array2, ArrayBase, ArrayView1, ArrayView2, ArrayViewMut2, Axis, DataMut, DataOwned,
-    Dimension, LinalgScalar, ShapeBuilder,
+    s, Array1, Array2, ArrayBase, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis, DataMut, DataOwned, Dimension, LinalgScalar, ShapeBuilder
 };
 use ndarray_linalg::{Scalar, UPLO};
 use num_traits::real::Real;
@@ -35,19 +34,29 @@ where
 ///////////////////////////////////////////////////////
 
 pub trait RowColIntoNdarray {
-    type Ndarray;
+    type Ndarray1;
+    type Ndarray2;
     #[track_caller]
-    fn into_ndarray(self) -> Self::Ndarray;
+    fn into_ndarray1(self) -> Self::Ndarray1;
+    fn into_ndarray2(self) -> Self::Ndarray2;
 }
 
 impl<'a, T> RowColIntoNdarray for ColRef<'a, T>
 where
     T: Entity + SimpleEntity,
 {
-    type Ndarray = ArrayView2<'a, T>;
+    type Ndarray1 = ArrayView1<'a, T>;
+    type Ndarray2 = ArrayView2<'a, T>;
 
     #[track_caller]
-    fn into_ndarray(self) -> Self::Ndarray {
+    fn into_ndarray1(self) -> Self::Ndarray1 {
+        let nrows = self.nrows();
+        let ptr = self.as_ptr();
+        unsafe { ArrayView1::<'_, T>::from_shape_ptr((nrows,).into_shape(), ptr) }
+    }
+    
+    #[track_caller]
+    fn into_ndarray2(self) -> Self::Ndarray2 {
         let nrows = self.nrows();
         let ptr = self.as_ptr();
         unsafe { ArrayView2::<'_, T>::from_shape_ptr((nrows, 1_usize).into_shape(), ptr) }
@@ -58,10 +67,18 @@ impl<'a, T> RowColIntoNdarray for ColMut<'a, T>
 where
     T: Entity + SimpleEntity,
 {
-    type Ndarray = ArrayViewMut2<'a, T>;
+    type Ndarray1 = ArrayViewMut1<'a, T>;
+    type Ndarray2 = ArrayViewMut2<'a, T>;
 
     #[track_caller]
-    fn into_ndarray(self) -> Self::Ndarray {
+    fn into_ndarray1(self) -> Self::Ndarray1 {
+        let nrows = self.nrows();
+        let ptr = self.as_ptr_mut();
+        unsafe { ArrayViewMut1::<'_, T>::from_shape_ptr((nrows,).into_shape(), ptr) }
+    }
+
+    #[track_caller]
+    fn into_ndarray2(self) -> Self::Ndarray2 {
         let nrows = self.nrows();
         let ptr = self.as_ptr_mut();
         unsafe { ArrayViewMut2::<'_, T>::from_shape_ptr((nrows, 1_usize).into_shape(), ptr) }
@@ -72,10 +89,18 @@ impl<'a, T> RowColIntoNdarray for RowRef<'a, T>
 where
     T: Entity + SimpleEntity,
 {
-    type Ndarray = ArrayView2<'a, T>;
+    type Ndarray1 = ArrayView1<'a, T>;
+    type Ndarray2 = ArrayView2<'a, T>;
 
     #[track_caller]
-    fn into_ndarray(self) -> Self::Ndarray {
+    fn into_ndarray1(self) -> Self::Ndarray1 {
+        let ncols = self.ncols();
+        let ptr = self.as_ptr();
+        unsafe { ArrayView1::<'_, T>::from_shape_ptr((ncols,).into_shape(), ptr) }
+    }
+    
+    #[track_caller]
+    fn into_ndarray2(self) -> Self::Ndarray2 {
         let ncols = self.ncols();
         let ptr = self.as_ptr();
         unsafe { ArrayView2::<'_, T>::from_shape_ptr((1_usize, ncols).into_shape(), ptr) }
@@ -86,10 +111,18 @@ impl<'a, T> RowColIntoNdarray for RowMut<'a, T>
 where
     T: Entity + SimpleEntity,
 {
-    type Ndarray = ArrayViewMut2<'a, T>;
+    type Ndarray1 = ArrayViewMut1<'a, T>;
+    type Ndarray2 = ArrayViewMut2<'a, T>;
 
     #[track_caller]
-    fn into_ndarray(self) -> Self::Ndarray {
+    fn into_ndarray1(self) -> Self::Ndarray1 {
+        let ncols = self.ncols();
+        let ptr = self.as_ptr_mut();
+        unsafe { ArrayViewMut1::<'_, T>::from_shape_ptr((ncols,).into_shape(), ptr) }
+    }
+    
+    #[track_caller]
+    fn into_ndarray2(self) -> Self::Ndarray2 {
         let ncols = self.ncols();
         let ptr = self.as_ptr_mut();
         unsafe { ArrayViewMut2::<'_, T>::from_shape_ptr((1, ncols).into_shape(), ptr) }
@@ -98,6 +131,96 @@ where
 
 ///////////////////////////////////////////////////////
 
+pub trait Array1IntoFaerRowCol<T> 
+where
+    T: Entity + SimpleEntity,
+{
+    type FaerCol;
+    type FaerRow;
+    #[track_caller]
+    fn into_faer_col(self) -> Self::FaerCol;
+    fn into_faer_row(self) -> Self::FaerRow;
+}
+
+impl<'a, T> Array1IntoFaerRowCol<T> for ArrayView1<'a, T> 
+where
+    T: Entity + SimpleEntity,
+{
+    
+    type FaerCol = ColRef<'a, T>;
+
+    type FaerRow = RowRef<'a, T>;
+    
+    fn into_faer_col(self) -> Self::FaerCol {
+        let nrows = self.len();
+        let strides: [isize; 1] = self.strides().try_into().unwrap();
+        let ptr = self.as_ptr();
+        unsafe { faer_core::col::from_raw_parts(ptr, nrows, strides[0]) }
+    }
+
+    fn into_faer_row(self) -> Self::FaerRow {
+        let ncols = self.len();
+        let strides: [isize; 1] = self.strides().try_into().unwrap();
+        let ptr = self.as_ptr();
+        unsafe { faer_core::row::from_raw_parts(ptr, ncols, strides[0]) }
+    }
+}
+
+impl<'a, T> Array1IntoFaerRowCol<T> for ArrayViewMut1<'a, T>
+where
+    T: Entity + SimpleEntity,
+{
+    
+    type FaerCol = ColMut<'a, T>;
+
+    type FaerRow = RowMut<'a, T>;
+    
+    fn into_faer_col(mut self) -> Self::FaerCol {
+        let nrows = self.len();
+        let strides: [isize; 1] = self.strides().try_into().unwrap();
+        let ptr = self.as_mut_ptr();
+        unsafe { faer_core::col::from_raw_parts_mut(ptr, nrows, strides[0]) }
+    }
+
+    fn into_faer_row(mut self) -> Self::FaerRow {
+        let ncols = self.len();
+        let strides: [isize; 1] = self.strides().try_into().unwrap();
+        let ptr = self.as_mut_ptr();
+        unsafe { faer_core::row::from_raw_parts_mut(ptr, ncols, strides[0]) }
+    }
+}
+
+impl<'a, T> Array1IntoFaerRowCol<T> for Array1<T> 
+where
+    T: Entity + SimpleEntity,
+{
+    
+    type FaerCol = Col<T>;
+
+    type FaerRow = Row<T>;
+    
+    fn into_faer_col(self) -> Self::FaerCol {
+        let nrows = self.len();
+        let strides: [isize; 1] = self.strides().try_into().unwrap();
+        let ptr = self.as_ptr();
+        let colref = unsafe { faer_core::col::from_raw_parts(ptr, nrows, strides[0]) };
+        let mut col = faer_core::Col::default();
+        col.copy_from(colref);
+        col
+    }
+
+    fn into_faer_row(self) -> Self::FaerRow {
+        let ncols = self.len();
+        let strides: [isize; 1] = self.strides().try_into().unwrap();
+        let ptr = self.as_ptr();
+        let rowref = unsafe { faer_core::row::from_raw_parts(ptr, ncols, strides[0]) };
+        let mut row = faer_core::Row::default();
+        row.copy_from(rowref);
+        row
+    }
+}
+
+///////////////////////////////////////////////////////
 pub trait ArrayBaseUtils<D, T, S>
 where
     D: Dimension,
