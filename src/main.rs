@@ -1,8 +1,12 @@
-use faer::{Col, Mat, Row};
+use faer::{unzipped, zipped, Col, Mat, Row};
 use faer_ext::{IntoFaer, IntoNdarray};
 
+use faer::linalg::zip::{Diag, MatIndex};
+
 use labcat::bounds::ContinuousBounds;
-use labcat::kernel::{BaseKernel, KernelSum};
+use labcat::ei::AcqFunction;
+use labcat::gp::GPSurrogate;
+use labcat::kernel::{BaseKernel, BayesianKernel, KernelSum, ARD};
 use labcat::labcat::LabcatMemory;
 use labcat::lhs::LHS;
 use labcat::memory::{
@@ -13,7 +17,7 @@ use labcat::memory::{
 use labcat::sqexp::SqExp;
 use labcat::utils::{MatMutUtils, MatRefUtils, MatUtils};
 use labcat::{ei::EI, gp::GP, kde::KDE, sqexp::SqExpARD, SMBO};
-use labcat::{AskTell, RefitWith, SurrogateIO};
+use labcat::{AskTell, BayesianSurrogateIO, Kernel, Memory, RefitWith, SurrogateIO};
 
 fn main() {
     let kern = SqExpARD::<f32>::new(5);
@@ -58,6 +62,13 @@ fn main() {
     }
 
     dbg!(&i);
+
+    zipped!(&mut i)
+        .for_each_triangular_lower_with_index(Diag::Include, |i, j, unzipped!(mut v)| {
+            v.write(i as f64)
+        });
+    dbg!(&i);
+
     dbg!(i.remove_cols(vec![1, 2]));
     dbg!(i.remove_rows(vec![0, 2]));
     // dbg!(i.remove_rows(vec![0,]));
@@ -121,25 +132,43 @@ fn main() {
     // smbo.ask();
 
     let mut mem = LabcatMemory::<f64>::new(2);
-    mem.append(&[1.0, 2.0], &1.0);
-    mem.append(&[3.0, 4.0], &2.0);
-    mem.append(&[5.0, 6.0], &3.0);
-    mem.append(&[7.0, 8.0], &4.0);
+    mem.append(&[0.0, 0.0], &0.0);
+    mem.append(&[1.0, -1.0], &2.0);
+    mem.append(&[3.0, 3.0], &18.0);
+    // mem.append(&[7.0, 8.0], &4.0);
 
-    mem.recenter_X(&[1.0, 2.0]);
-    mem.rescale_X(&[2.0, 4.0]);
-    mem.rotate_X();
+    // mem.recenter_X(&[1.0, 2.0]);
+    // mem.rescale_X(&[2.0, 4.0]);
+    // mem.rotate_X();
 
-    dbg!(mem.X());
-    dbg!(mem.X_prime());
+    // dbg!(mem.X());
+    // dbg!(mem.X_prime());
 
-    mem.recenter_Y(&1.0);
-    mem.rescale_Y(&3.0);
+    // mem.recenter_Y(&1.0);
+    // mem.rescale_Y(&3.0);
 
-    dbg!(mem.Y());
-    dbg!(mem.Y_prime());
+    // dbg!(mem.Y());
+    // dbg!(mem.Y_prime());
 
-    let mut kde = KDE::<f64, SqExpARD<f64>>::new(2);
-    kde.refit_from(&mem).unwrap();
-    dbg!(kde.probe(&[0.0, 0.0]));
+    // let mut kde = KDE::<f64, SqExpARD<f64>>::new(2);
+    // kde.refit_from(&mem).unwrap();
+    // dbg!(kde.probe(&[0.0, 0.0]));
+
+    let mut gp = GP::<f64, SqExpARD<_>, LabcatMemory<_>>::new(2);
+    gp.memory_mut().reset_transform();
+    gp.kernel_mut().update_l(&[2.0, 1.0]);
+    *gp.kernel_mut().sigma_f_mut() = 50.0;
+    *gp.kernel_mut().sigma_n_mut() = 1e-6;
+    gp.refit_from(&mem).unwrap();
+    dbg!(gp.memory().X());
+    dbg!(gp.kernel());
+    dbg!(gp.K());
+    dbg!(gp.alpha());
+
+    dbg!(gp.probe(&[2.0, 1.0])); //CHECKED, TODO: WRITE TESTS
+    dbg!(gp.probe_variance(&[2.0, 1.0])); //CHECKED
+
+    let ei = EI::new(0.0);
+
+    dbg!(ei.probe_acq(&gp, &[2.0, 1.0])); //CHECKED
 }

@@ -1,7 +1,7 @@
 use std::ops::IndexMut;
 
 use faer::modules::core::{AsColRef, AsMatMut, AsMatRef, AsRowRef};
-use faer::{col, row, unzipped, zipped, ColMut, ColRef, Mat, RowMut, RowRef};
+use faer::{col, row, unzipped, zipped, ColMut, ColRef, Mat, RowMut, RowRef, Side};
 // use ndarray::{Array, Ix2};
 
 use crate::dtype;
@@ -224,6 +224,25 @@ where
                 col_stride,
             )
         })
+    }
+
+    #[inline]
+    #[track_caller]
+    fn fill_with_side(&mut self, side: Side) {
+        if self.as_mat_mut().nrows() != self.as_mat_mut().ncols() {
+            panic!("Matrix is not square!")
+        };
+
+        let dim = self.as_mat_mut().nrows();
+
+        for i in 0..dim {
+            for j in 0..i {
+                match side {
+                    Side::Upper => self.as_mat_mut()[(i, j)] = self.as_mat_mut()[(j, i)],
+                    Side::Lower => self.as_mat_mut()[(j, i)] = self.as_mat_mut()[(i, j)],
+                }
+            }
+        }
     }
 }
 

@@ -150,6 +150,11 @@ where
             panic!("New length-scales have different dim!");
         }
 
+        self.l
+            .iter_mut()
+            .zip(new_l.iter())
+            .for_each(|(old_l, new_l)| *old_l = *new_l);
+
         self.l_inv
             .diag_mut()
             .iter_mut()
