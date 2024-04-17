@@ -1,10 +1,7 @@
 use std::ops::IndexMut;
 
-use faer::{
-    col, row, unzipped, zipped, ColMut, ColRef, Mat,
-    RowMut, RowRef,
-};
 use faer::modules::core::{AsColRef, AsMatMut, AsMatRef, AsRowRef};
+use faer::{col, row, unzipped, zipped, ColMut, ColRef, Mat, RowMut, RowRef};
 // use ndarray::{Array, Ix2};
 
 use crate::dtype;

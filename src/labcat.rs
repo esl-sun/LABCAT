@@ -315,8 +315,7 @@ impl<T: dtype> ObservationInputRotate<T> for LabcatMemory<T> {
 
 impl<T: dtype> ObservationOutputRecenter<T> for LabcatMemory<T> {
     fn recenter_Y(&mut self, cen: &T) {
-        zipped!(self.base_mem.Y.as_mut(),)
-            .for_each(|unzipped!(mut y)| y.write(y.read() - *cen));
+        zipped!(self.base_mem.Y.as_mut(),).for_each(|unzipped!(mut y)| y.write(y.read() - *cen));
 
         self.y_offset = self.y_offset + self.y_scale.mul(*cen);
     }

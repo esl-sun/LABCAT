@@ -11,8 +11,8 @@ use num_traits::real::Real;
 
 use crate::kernel::{BaseKernel, BayesianKernel};
 use crate::memory::{ObservationIO, ObservationMean};
+use crate::ndarray_utils::{Array1IntoFaerRowCol, Array2Utils, ArrayView2Utils, RowColIntoNdarray};
 use crate::utils::ColRefUtils;
-use crate::ndarray_utils::{Array2Utils, Array1IntoFaerRowCol, ArrayView2Utils, RowColIntoNdarray};
 use crate::{dtype, BayesianSurrogateIO, Kernel, Memory, Refit, RefitWith, SurrogateIO};
 
 pub trait GPSurrogate<T>: SurrogateIO<T> + BayesianSurrogateIO<T> + Kernel<T>
@@ -112,7 +112,9 @@ where
             // alpha: Array1::zeros((d,)),
             K: Mat::identity(d, d),
             Kinv: Mat::identity(d, d),
-            L: Mat::<T>::identity(d, d).cholesky(faer::Side::Lower).expect("Should never fail during init."),
+            L: Mat::<T>::identity(d, d)
+                .cholesky(faer::Side::Lower)
+                .expect("Should never fail during init."),
             alpha: Col::zeros(d),
             mem: M::new(d),
         }

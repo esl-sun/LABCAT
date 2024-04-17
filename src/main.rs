@@ -1,4 +1,4 @@
-use faer::{Mat, Col, Row};
+use faer::{Col, Mat, Row};
 use faer_ext::{IntoFaer, IntoNdarray};
 
 use labcat::bounds::ContinuousBounds;
@@ -11,9 +11,9 @@ use labcat::memory::{
     ObservationTransform,
 };
 use labcat::sqexp::SqExp;
-use labcat::{AskTell, RefitWith, SurrogateIO};
-use labcat::{ei::EI, gp::GP, kde::KDE, sqexp::SqExpARD, SMBO};
 use labcat::utils::{MatMutUtils, MatRefUtils, MatUtils};
+use labcat::{ei::EI, gp::GP, kde::KDE, sqexp::SqExpARD, SMBO};
+use labcat::{AskTell, RefitWith, SurrogateIO};
 
 fn main() {
     let kern = SqExpARD::<f32>::new(5);

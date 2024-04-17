@@ -53,7 +53,7 @@ where
             kernel: BaseKernel::new(d),
         }
     }
-    
+
     fn probe(&self, x: &[T]) -> Option<T> {
         Some(
             self.mem

@@ -3,8 +3,8 @@
 use std::{marker::PhantomData, usize};
 
 use egobox_doe::{Lhs, LhsKind, SamplingMethod};
-use faer_ext::{IntoFaer, IntoNdarray};
 use faer::{Mat, MatRef};
+use faer_ext::{IntoFaer, IntoNdarray};
 use ndarray::{Array2, ArrayView2};
 use ndarray_rand::rand::{self, Rng};
 use num_traits::Zero;

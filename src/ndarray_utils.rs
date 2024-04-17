@@ -5,7 +5,8 @@ use std::{iter::Sum, ops::Neg};
 use faer::{Col, ColMut, ColRef, Entity, Mat, Row, RowMut, RowRef, SimpleEntity};
 use faer_ext::IntoNdarray;
 use ndarray::{
-    s, Array1, Array2, ArrayBase, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis, DataMut, DataOwned, Dimension, LinalgScalar, ShapeBuilder
+    s, Array1, Array2, ArrayBase, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis,
+    DataMut, DataOwned, Dimension, LinalgScalar, ShapeBuilder,
 };
 use ndarray_linalg::{Scalar, UPLO};
 use num_traits::real::Real;
@@ -54,7 +55,7 @@ where
         let ptr = self.as_ptr();
         unsafe { ArrayView1::<'_, T>::from_shape_ptr((nrows,).into_shape(), ptr) }
     }
-    
+
     #[track_caller]
     fn into_ndarray2(self) -> Self::Ndarray2 {
         let nrows = self.nrows();
@@ -98,7 +99,7 @@ where
         let ptr = self.as_ptr();
         unsafe { ArrayView1::<'_, T>::from_shape_ptr((ncols,).into_shape(), ptr) }
     }
-    
+
     #[track_caller]
     fn into_ndarray2(self) -> Self::Ndarray2 {
         let ncols = self.ncols();
@@ -120,7 +121,7 @@ where
         let ptr = self.as_ptr_mut();
         unsafe { ArrayViewMut1::<'_, T>::from_shape_ptr((ncols,).into_shape(), ptr) }
     }
-    
+
     #[track_caller]
     fn into_ndarray2(self) -> Self::Ndarray2 {
         let ncols = self.ncols();
@@ -131,7 +132,7 @@ where
 
 ///////////////////////////////////////////////////////
 
-pub trait Array1IntoFaerRowCol<T> 
+pub trait Array1IntoFaerRowCol<T>
 where
     T: Entity + SimpleEntity,
 {
@@ -142,15 +143,14 @@ where
     fn into_faer_row(self) -> Self::FaerRow;
 }
 
-impl<'a, T> Array1IntoFaerRowCol<T> for ArrayView1<'a, T> 
+impl<'a, T> Array1IntoFaerRowCol<T> for ArrayView1<'a, T>
 where
     T: Entity + SimpleEntity,
 {
-    
     type FaerCol = ColRef<'a, T>;
 
     type FaerRow = RowRef<'a, T>;
-    
+
     fn into_faer_col(self) -> Self::FaerCol {
         let nrows = self.len();
         let strides: [isize; 1] = self.strides().try_into().unwrap();
@@ -170,11 +170,10 @@ impl<'a, T> Array1IntoFaerRowCol<T> for ArrayViewMut1<'a, T>
 where
     T: Entity + SimpleEntity,
 {
-    
     type FaerCol = ColMut<'a, T>;
 
     type FaerRow = RowMut<'a, T>;
-    
+
     fn into_faer_col(mut self) -> Self::FaerCol {
         let nrows = self.len();
         let strides: [isize; 1] = self.strides().try_into().unwrap();
@@ -190,15 +189,14 @@ where
     }
 }
 
-impl<'a, T> Array1IntoFaerRowCol<T> for Array1<T> 
+impl<'a, T> Array1IntoFaerRowCol<T> for Array1<T>
 where
     T: Entity + SimpleEntity,
 {
-    
     type FaerCol = Col<T>;
 
     type FaerRow = Row<T>;
-    
+
     fn into_faer_col(self) -> Self::FaerCol {
         let nrows = self.len();
         let strides: [isize; 1] = self.strides().try_into().unwrap();

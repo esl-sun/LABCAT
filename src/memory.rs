@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
+use faer::modules::core::AsMatRef;
 use faer::{Mat, MatRef, Row};
-use faer::modules::core::{AsMatRef};
 use ord_subset::{OrdSubset, OrdSubsetIterExt};
 
 use crate::{dtype, utils::MatUtils};
@@ -351,7 +351,10 @@ where
 
 impl<T: dtype> BaseMemory<T> {
     fn from(X: impl AsMatRef<T>, Y: &[T]) -> Self {
-        Self { X: X.as_mat_ref().to_owned(), Y: faer::row::from_slice::<T>(Y).to_owned() }
+        Self {
+            X: X.as_mat_ref().to_owned(),
+            Y: faer::row::from_slice::<T>(Y).to_owned(),
+        }
     }
 }
 

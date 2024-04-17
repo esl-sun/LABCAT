@@ -10,8 +10,8 @@
 #![allow(dead_code)] //TODO: Remove
 
 use anyhow::Result; //TODO: Make crate Error types
-use faer::ComplexField;
 use faer::modules::core::IdentityGroup;
+use faer::ComplexField;
 use kernel::BaseKernel;
 use memory::{BaseMemory, ObservationIO};
 use num_traits::{real::Real, FromPrimitive, ToPrimitive};

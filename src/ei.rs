@@ -6,7 +6,8 @@ use statrs::distribution::{Continuous, ContinuousCDF, Normal};
 // use rand_distr::{Normal, Distribution};
 
 use crate::{
-    dtype, gp::GPSurrogate, memory::ObservationMaxMin, tpe::TPESurrogate, BayesianSurrogateIO, Memory, SurrogateIO
+    dtype, gp::GPSurrogate, memory::ObservationMaxMin, tpe::TPESurrogate, BayesianSurrogateIO,
+    Memory, SurrogateIO,
 };
 
 pub trait AcqFunction<T, S>
@@ -93,7 +94,6 @@ where
     S: GPSurrogate<T> + Memory<T, MemType: ObservationMaxMin<T>>,
 {
     fn acq_jacobian(&self, surrogate: &S, x: &[T]) -> Option<&[T]> {
-        
         let mean = surrogate.probe(x)?;
         let sigma = surrogate.probe_variance(x)?.sqrt();
         let min = *surrogate
