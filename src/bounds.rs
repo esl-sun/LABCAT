@@ -1,4 +1,4 @@
-use faer_core::Mat;
+use faer::Mat;
 use itertools::izip;
 
 use crate::dtype;

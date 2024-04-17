@@ -1,4 +1,4 @@
-use faer_core::{Mat, MatRef};
+use faer::{Mat, MatRef};
 
 use crate::dtype;
 

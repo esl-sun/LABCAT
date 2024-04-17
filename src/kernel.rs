@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use faer_core::{MatRef, Row};
+use faer::{MatRef, Row};
 
 use crate::{dtype, utils::MatRefUtils};
 

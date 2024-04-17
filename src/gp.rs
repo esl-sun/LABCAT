@@ -3,8 +3,8 @@
 
 use anyhow::Result;
 use faer::solvers::Cholesky;
-use faer::{FaerMat, IntoFaer};
-use faer_core::{Col, ColMut, ColRef, Mat, MatRef};
+// use faer::IntoFaer;
+use faer::{Col, ColMut, ColRef, Mat, MatRef};
 use ndarray::{Array1, Array2, OwnedRepr};
 use ndarray_linalg::{CholeskyFactorized, FactorizeC, InverseC, Lapack, SolveC, UPLO};
 use num_traits::real::Real;
@@ -112,7 +112,7 @@ where
             // alpha: Array1::zeros((d,)),
             K: Mat::identity(d, d),
             Kinv: Mat::identity(d, d),
-            L: Mat::<T>::identity(d, d).cholesky(faer_core::Side::Lower).expect("Should never fail during init."),
+            L: Mat::<T>::identity(d, d).cholesky(faer::Side::Lower).expect("Should never fail during init."),
             alpha: Col::zeros(d),
             mem: M::new(d),
         }

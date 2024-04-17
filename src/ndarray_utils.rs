@@ -2,8 +2,8 @@
 
 use std::{iter::Sum, ops::Neg};
 
-use faer::IntoNdarray;
-use faer_core::{Col, ColMut, ColRef, Entity, Mat, Row, RowMut, RowRef, SimpleEntity};
+use faer::{Col, ColMut, ColRef, Entity, Mat, Row, RowMut, RowRef, SimpleEntity};
+use faer_ext::IntoNdarray;
 use ndarray::{
     s, Array1, Array2, ArrayBase, ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Axis, DataMut, DataOwned, Dimension, LinalgScalar, ShapeBuilder
 };
@@ -155,14 +155,14 @@ where
         let nrows = self.len();
         let strides: [isize; 1] = self.strides().try_into().unwrap();
         let ptr = self.as_ptr();
-        unsafe { faer_core::col::from_raw_parts(ptr, nrows, strides[0]) }
+        unsafe { faer::col::from_raw_parts(ptr, nrows, strides[0]) }
     }
 
     fn into_faer_row(self) -> Self::FaerRow {
         let ncols = self.len();
         let strides: [isize; 1] = self.strides().try_into().unwrap();
         let ptr = self.as_ptr();
-        unsafe { faer_core::row::from_raw_parts(ptr, ncols, strides[0]) }
+        unsafe { faer::row::from_raw_parts(ptr, ncols, strides[0]) }
     }
 }
 
@@ -179,14 +179,14 @@ where
         let nrows = self.len();
         let strides: [isize; 1] = self.strides().try_into().unwrap();
         let ptr = self.as_mut_ptr();
-        unsafe { faer_core::col::from_raw_parts_mut(ptr, nrows, strides[0]) }
+        unsafe { faer::col::from_raw_parts_mut(ptr, nrows, strides[0]) }
     }
 
     fn into_faer_row(mut self) -> Self::FaerRow {
         let ncols = self.len();
         let strides: [isize; 1] = self.strides().try_into().unwrap();
         let ptr = self.as_mut_ptr();
-        unsafe { faer_core::row::from_raw_parts_mut(ptr, ncols, strides[0]) }
+        unsafe { faer::row::from_raw_parts_mut(ptr, ncols, strides[0]) }
     }
 }
 
@@ -203,8 +203,8 @@ where
         let nrows = self.len();
         let strides: [isize; 1] = self.strides().try_into().unwrap();
         let ptr = self.as_ptr();
-        let colref = unsafe { faer_core::col::from_raw_parts(ptr, nrows, strides[0]) };
-        let mut col = faer_core::Col::default();
+        let colref = unsafe { faer::col::from_raw_parts(ptr, nrows, strides[0]) };
+        let mut col = Col::default();
         col.copy_from(colref);
         col
     }
@@ -213,8 +213,8 @@ where
         let ncols = self.len();
         let strides: [isize; 1] = self.strides().try_into().unwrap();
         let ptr = self.as_ptr();
-        let rowref = unsafe { faer_core::row::from_raw_parts(ptr, ncols, strides[0]) };
-        let mut row = faer_core::Row::default();
+        let rowref = unsafe { faer::row::from_raw_parts(ptr, ncols, strides[0]) };
+        let mut row = Row::default();
         row.copy_from(rowref);
         row
     }

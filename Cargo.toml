@@ -11,17 +11,18 @@ anyhow = "1.0.69"
 # ndarray = "0.15.6"
 ndarray = { version = "0.15.6", features = ["rayon", "matrixmultiply-threading", "blas"] }
 # ndarray-linalg = "0.16.0"
-ndarray-linalg = { version = "0.16", features = ["intel-mkl-static"] }
-# ndarray-linalg = { version = "0.16", features = ["openblas-static"] }
+# ndarray-linalg = { version = "0.16", features = ["intel-mkl-static"] }
+ndarray-linalg = { version = "0.16", features = ["openblas-static"] }
 ndarray-rand = "0.14.0"
 nshare = { version = "0.9.0", features = ["nalgebra", "ndarray"] }
 num-traits = "0.2.15"
 simba = "0.8.1"
-egobox-doe = "0.15.0"
+egobox-doe = "0.18.1"
 linfa = "0.7.0"
 ord_subset = "3.1.1"
-faer = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-clone-debug-impls", features = ["nalgebra", "ndarray", "nightly"]}
-faer-core = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-clone-debug-impls"}
+# faer = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-clone-debug-impls", features = ["nalgebra", "ndarray", "nightly"]}
+faer = {version = "0.18.2", features = ["nightly"]}
+faer-ext = {version = "0.1.0", features = ["ndarray"]}
 lazy_static = "1.4.0"
 statrs = "0.16.0"
 itertools = "0.12.1"

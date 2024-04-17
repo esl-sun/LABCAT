@@ -1,5 +1,6 @@
-use faer::{IntoFaer, IntoNdarray, Mat};
-use faer_core::{Col, Row};
+use faer::{Mat, Col, Row};
+use faer_ext::{IntoFaer, IntoNdarray};
+
 use labcat::bounds::ContinuousBounds;
 use labcat::kernel::{BaseKernel, KernelSum};
 use labcat::labcat::LabcatMemory;
@@ -12,9 +13,6 @@ use labcat::memory::{
 use labcat::sqexp::SqExp;
 use labcat::{AskTell, RefitWith, SurrogateIO};
 use labcat::{ei::EI, gp::GP, kde::KDE, sqexp::SqExpARD, SMBO};
-// use faer_core::ColIndex;
-// use faer_core::Mat;
-// use labcat::ToVector;
 use labcat::utils::{MatMutUtils, MatRefUtils, MatUtils};
 
 fn main() {
@@ -88,7 +86,7 @@ fn main() {
         dbg!(col[0]);
     }
 
-    let l = faer_core::row::from_slice::<f64>(&[1.0, 2.0, 3.0, 50.0]);
+    let l = faer::row::from_slice::<f64>(&[1.0, 2.0, 3.0, 50.0]);
 
     // faer_core::zipped!(
     //     i.as_mut().diagonal_mut().column_vector_mut(),
@@ -99,8 +97,8 @@ fn main() {
     // });
 
     i.rows_mut().for_each(|col| {
-        faer_core::zipped!(col, l)
-            .for_each(|faer_core::unzipped!(mut col, l)| col.write(col.read() + l.read()));
+        faer::zipped!(col, l)
+            .for_each(|faer::unzipped!(mut col, l)| col.write(col.read() + l.read()));
     });
 
     dbg!(i.as_ref().into_ndarray());

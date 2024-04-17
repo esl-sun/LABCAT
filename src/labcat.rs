@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
-use faer::FaerMat;
-use faer_core::{unzipped, zipped, Col, Mat, MatRef, Row};
+// use faer::FaerMat;
+use faer::{unzipped, zipped, Col, Mat, MatRef, Row};
 use ord_subset::OrdSubset;
 
 use crate::{
@@ -257,7 +257,7 @@ impl<T: dtype> ObservationTransform<T> for LabcatMemory<T> {
 
 impl<T: dtype> ObservationInputRecenter<T> for LabcatMemory<T> {
     fn recenter_X(&mut self, cen: &[T]) {
-        let cen = faer_core::col::from_slice::<T>(cen);
+        let cen = faer::col::from_slice::<T>(cen);
 
         self.base_mem.X.as_mut().cols_mut().for_each(|col| {
             zipped!(col, cen).for_each(|unzipped!(mut col, cen)| col.write(col.read() - cen.read()))
@@ -274,7 +274,7 @@ impl<T: dtype> ObservationInputRescale<T> for LabcatMemory<T> {
             panic!("Dimensions of new rescaling slice and memory do not match!");
         }
 
-        let l = faer_core::col::from_slice::<T>(l);
+        let l = faer::col::from_slice::<T>(l);
 
         //TODO: Avoid ref to private member?
         self.base_mem.X.cols_mut().for_each(|col| {
@@ -298,7 +298,7 @@ impl<T: dtype> ObservationInputRotate<T> for LabcatMemory<T> {
         let mut W = Mat::<T>::identity(self.n(), self.n());
         zipped!(
             W.as_mut().diagonal_mut().column_vector_mut(),
-            faer_core::col::from_slice::<T>(self.Y())
+            faer::col::from_slice::<T>(self.Y())
         )
         .for_each(|unzipped!(mut W, y)| W.write(T::one() - y.read()));
 

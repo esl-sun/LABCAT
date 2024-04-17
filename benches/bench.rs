@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use faer_core::{Entity, Mat, MatRef};
+use faer::{Entity, Mat, MatRef};
 
 fn dummy<T: Entity>(_: MatRef<'_, T>) {}
 
