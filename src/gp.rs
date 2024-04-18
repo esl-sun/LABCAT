@@ -22,6 +22,7 @@ where
 {
     fn K(&self) -> MatRef<T>;
     fn alpha(&self) -> ColRef<T>;
+    fn log_lik(&self) -> Option<T>;
     // fn chol_solve(&self, x: &[T]) -> Result<Col<T>>;
     // fn chol_solve_inplace(&self, x: &mut Col<T>) -> Result<()>;
 }
@@ -59,7 +60,7 @@ where
     Self: SurrogateIO<T> + BayesianSurrogateIO<T>,
     T: dtype,
     K: BaseKernel<T>,
-    M: ObservationIO<T>,
+    M: ObservationIO<T> + ObservationMean<T>,
 {
     fn K(&self) -> MatRef<T> {
         self.K.as_ref()
@@ -67,6 +68,18 @@ where
 
     fn alpha(&self) -> ColRef<T> {
         self.alpha.as_ref()
+    }
+
+    fn log_lik(&self) -> Option<T> {
+        let y_mean = self.mem.Y_mean()?;
+
+        Some(
+            (T::one() + T::one()).recip().neg() //-0.5
+            * zipped!(faer::col::from_slice::<T>(self.mem.Y()), self.alpha())
+                .map(|unzipped!(y, a)| (y.read() - y_mean) * a.read()).sum() // (y - y_mean).dot(alpha)
+            - zipped!(self.L.compute_l().diagonal().column_vector())
+                .map(|unzipped!(val)| val.ln()).sum(), // trace(ln(L)), precompute trace?
+        )
     }
 }
 
@@ -114,7 +127,7 @@ where
                 .k(x, x)
                 .sub(k_diag * v)
                 .add(self.kernel.sigma_n().powi(2))
-                .abs()
+                .abs(),
         )
     }
 }
@@ -151,10 +164,8 @@ where
         self.alpha.resize_with(n, |_| T::zero());
 
         let y_mean = self.mem.Y_mean().unwrap_or(T::zero());
-        dbg!(&y_mean);
         zipped!(&mut self.alpha)
             .for_each_with_index(|i, unzipped!(mut v)| *v = self.mem.Y()[i] - y_mean);
-        dbg!(&self.alpha);
         self.L.solve_in_place(&mut self.alpha);
 
         Ok(())

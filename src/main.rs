@@ -135,7 +135,6 @@ fn main() {
     mem.append(&[0.0, 0.0], &0.0);
     mem.append(&[1.0, -1.0], &2.0);
     mem.append(&[3.0, 3.0], &18.0);
-    // mem.append(&[7.0, 8.0], &4.0);
 
     // mem.recenter_X(&[1.0, 2.0]);
     // mem.rescale_X(&[2.0, 4.0]);
@@ -171,4 +170,5 @@ fn main() {
     let ei = EI::new(0.0);
 
     dbg!(ei.probe_acq(&gp, &[2.0, 1.0])); //CHECKED
+    dbg!(gp.log_lik()); //CHECKED
 }
