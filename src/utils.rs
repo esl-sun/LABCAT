@@ -1,10 +1,24 @@
 use std::ops::IndexMut;
 
-use faer::modules::core::{AsColRef, AsColMut, AsMatMut, AsMatRef, AsRowRef, AsRowMut};
-use faer::{col, row, unzipped, zipped, ColMut, ColRef, Mat, RowMut, RowRef, Side};
+use faer::modules::core::{AsColMut, AsColRef, AsMatMut, AsMatRef, AsRowMut, AsRowRef};
+use faer::{col, row, unzipped, zipped, Col, ColMut, ColRef, Mat, Row, RowMut, RowRef, Side};
 // use ndarray::{Array, Ix2};
 
 use crate::dtype;
+
+#[derive(Debug, Clone)]
+
+pub enum Select {
+    Include,
+    Exclude,
+}
+
+#[derive(Debug, Clone)]
+
+pub enum Axis {
+    Col,
+    Row,
+}
 
 // pub trait IntoOwnedFaer {
 //     type Faer;
@@ -47,6 +61,43 @@ where
             |ptr| unsafe { core::slice::from_raw_parts(ptr, nrows) },
         )
     }
+
+    #[inline]
+    #[track_caller]
+    fn get_subcol_with_idx(&self, select: Select, mut idx: Vec<usize>) -> Col<E> {
+        idx.sort(); //sort vec
+        idx.dedup(); //remove duplicates
+
+        #[cfg(debug_assertions)]
+        if let Some(max_id) = idx.last() {
+            if *max_id >= self.as_col_ref().nrows() {
+                panic!("Row index ({}) to {:?} out of bounds!", max_id, select,);
+            }
+        }
+
+        let nrows = match &select {
+            Select::Include => idx.len(),
+            Select::Exclude => usize::saturating_sub(self.as_col_ref().nrows(), idx.len()),
+        };
+
+        //TODO: Sidestep allocation?
+        let mut col_red = Col::<E>::zeros(nrows);
+
+        self.as_col_ref()
+            .as_slice()
+            .iter()
+            .enumerate()
+            .filter(|(row_id, _)| match select {
+                Select::Include => idx.binary_search(row_id).is_ok(),
+                Select::Exclude => idx.binary_search(row_id).is_err(),
+            })
+            .enumerate()
+            .for_each(|(new_row_id, (_, row_val))| {
+                col_red[new_row_id] = *row_val;
+            });
+
+        col_red
+    }
 }
 
 impl<E: dtype, M: AsColRef<E>> ColRefUtils<E> for M {}
@@ -87,6 +138,43 @@ where
             |ptr| unsafe { core::slice::from_raw_parts(ptr, ncols) },
         )
     }
+
+    #[inline]
+    #[track_caller]
+    fn get_subrow_with_idx(&self, select: Select, mut idx: Vec<usize>) -> Row<E> {
+        idx.sort(); //sort vec
+        idx.dedup(); //remove duplicates
+
+        #[cfg(debug_assertions)]
+        if let Some(max_id) = idx.last() {
+            if *max_id >= self.as_row_ref().nrows() {
+                panic!("Row index ({}) to {:?} out of bounds!", max_id, select,);
+            }
+        }
+
+        let ncols = match &select {
+            Select::Include => idx.len(),
+            Select::Exclude => usize::saturating_sub(self.as_row_ref().ncols(), idx.len()),
+        };
+
+        //TODO: Sidestep allocation?
+        let mut row_red = Row::<E>::zeros(ncols);
+
+        self.as_row_ref()
+            .as_slice()
+            .iter()
+            .enumerate()
+            .filter(|(col_id, _)| match select {
+                Select::Include => idx.binary_search(col_id).is_ok(),
+                Select::Exclude => idx.binary_search(col_id).is_err(),
+            })
+            .enumerate()
+            .for_each(|(new_col_id, (_, col_val))| {
+                row_red[new_col_id] = *col_val;
+            });
+
+        row_red
+    }
 }
 
 impl<E: dtype, M: AsRowRef<E>> RowRefUtils<E> for M {}
@@ -110,7 +198,6 @@ where
 }
 
 impl<E: dtype, M: AsRowMut<E>> RowMutUtils<E> for M {}
-
 
 pub trait MatRefUtils<E>
 where
@@ -159,6 +246,67 @@ where
                 col_stride,
             )
         })
+    }
+
+    fn get_submatrix_with_idx(&self, select: Select, axis: Axis, mut idx: Vec<usize>) -> Mat<E> {
+        idx.sort(); //sort vec
+        idx.dedup(); //remove duplicates
+
+        #[cfg(debug_assertions)]
+        if let Some(max_id) = idx.last() {
+            if *max_id
+                >= match &axis {
+                    Axis::Col => self.as_mat_ref().ncols(),
+                    Axis::Row => self.as_mat_ref().nrows(),
+                }
+            {
+                panic!(
+                    "{:?} index ({}) to {:?} out of bounds!",
+                    axis, max_id, select,
+                );
+            }
+        }
+
+        let (nrows, ncols) = match (&axis, &select) {
+            (Axis::Col, Select::Include) => (self.as_mat_ref().nrows(), idx.len()),
+            (Axis::Col, Select::Exclude) => (
+                self.as_mat_ref().nrows(),
+                usize::saturating_sub(self.as_mat_ref().ncols(), idx.len()),
+            ),
+            (Axis::Row, Select::Include) => (idx.len(), self.as_mat_ref().ncols()),
+            (Axis::Row, Select::Exclude) => (
+                usize::saturating_sub(self.as_mat_ref().nrows(), idx.len()),
+                self.as_mat_ref().ncols(),
+            ),
+        };
+
+        //TODO: Sidestep allocation?
+        let mut mat_red = Mat::<E>::zeros(nrows, ncols);
+
+        match axis {
+            Axis::Col => self.as_mat_ref(),
+            Axis::Row => self.as_mat_ref().transpose(),
+        }
+        .cols()
+        .enumerate()
+        .filter(|(col_id, _)| match select {
+            Select::Include => idx.binary_search(col_id).is_ok(),
+            Select::Exclude => idx.binary_search(col_id).is_err(),
+        })
+        .enumerate()
+        .for_each(|(new_col_id, (_, col))| {
+            zipped!(
+                match axis {
+                    Axis::Col => mat_red.as_mut(),
+                    Axis::Row => mat_red.as_mut().transpose_mut(),
+                }
+                .col_mut(new_col_id),
+                col
+            )
+            .for_each(|unzipped!(mut old, new)| old.write(new.read()));
+        });
+
+        mat_red
     }
 }
 
@@ -300,8 +448,6 @@ where
         F: FnMut((usize, usize), E) -> E;
     fn fill_row_with_slice(&mut self, row: usize, s: &[E]);
     fn fill_col_with_slice(&mut self, col: usize, s: &[E]);
-    fn remove_cols(&self, idx: Vec<usize>) -> Mat<E>;
-    fn remove_rows(&self, idx: Vec<usize>) -> Mat<E>;
 }
 
 impl<E: dtype> MatUtils<E> for Mat<E> {
@@ -374,71 +520,5 @@ impl<E: dtype> MatUtils<E> for Mat<E> {
         }
 
         (0..self.nrows()).for_each(|i| self.write(i, col, s[i]))
-    }
-
-    fn remove_cols(&self, mut idx: Vec<usize>) -> Mat<E> {
-        idx.sort(); //sort vec
-        idx.dedup(); //remove duplicates
-
-        #[cfg(debug_assertions)]
-        if let Some(max_id) = idx.last() {
-            if *max_id >= self.ncols() {
-                panic!(
-                    "Col index to remove ({}) out of bounds for matrix with {} cols!",
-                    max_id,
-                    self.ncols()
-                );
-            }
-        }
-
-        let nrows = self.nrows();
-        //TODO: Sidestep allocation?
-        let mut mat_red = Mat::<E>::zeros(nrows, usize::saturating_sub(self.ncols(), idx.len()));
-
-        self.as_ref()
-            .cols()
-            .enumerate()
-            .filter(|(col_id, _)| idx.binary_search(col_id).is_err())
-            .enumerate()
-            .for_each(|(new_col_id, (_, col))| {
-                zipped!(mat_red.as_mut().col_mut(new_col_id), col)
-                    .for_each(|unzipped!(mut old, new)| old.write(new.read()));
-            });
-
-        mat_red
-    }
-
-    fn remove_rows(&self, mut idx: Vec<usize>) -> Mat<E> {
-        idx.sort(); //sort vec
-        idx.dedup(); //remove duplicates
-
-        #[cfg(debug_assertions)]
-        if let Some(max_id) = idx.last() {
-            if *max_id >= self.nrows() {
-                panic!(
-                    "Row index to remove ({}) out of bounds for matrix with {} rows!",
-                    max_id,
-                    self.nrows()
-                );
-            }
-        }
-
-        let ncols = self.ncols();
-        let mut mat_red = Mat::<E>::zeros(usize::saturating_sub(self.nrows(), idx.len()), ncols);
-
-        self.as_ref()
-            .rows()
-            .enumerate()
-            .filter(|(row_id, _)| idx.binary_search(row_id).is_err())
-            .enumerate()
-            .for_each(|(new_row_id, (_, row))| {
-                // let s = core::slice::from_raw_parts(col.as_ptr(), nrows);
-                // mat_red.fill_col_with_slice(new_col_id, s);
-
-                zipped!(mat_red.as_mut().row_mut(new_row_id), row)
-                    .for_each(|unzipped!(mut old, new)| old.write(new.read()));
-            });
-
-        mat_red
     }
 }
