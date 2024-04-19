@@ -1,10 +1,10 @@
 #![allow(non_snake_case)]
 
 use faer::modules::core::AsMatRef;
-use faer::{Mat, MatRef, Row};
+use faer::{zipped, unzipped, Mat, MatMut, MatRef, Row};
 use ord_subset::{OrdSubset, OrdSubsetIterExt};
 
-use crate::{dtype, utils::MatUtils};
+use crate::{dtype, utils::{MatUtils, MatMutUtils, RowMutUtils}};
 
 pub trait ObservationIO<T>
 where
@@ -14,7 +14,9 @@ where
     fn dim(&self) -> usize;
     fn n(&self) -> usize;
     fn X(&self) -> &Mat<T>;
+    fn X_mut(&mut self) -> MatMut<T>;
     fn Y(&self) -> &[T];
+    fn Y_mut(&mut self) -> &mut [T];
     fn append(&mut self, x: &[T], y: &T);
     fn append_mult(&mut self, X: MatRef<T>, Y: &[T]);
     fn discard(&mut self, i: usize);
@@ -309,28 +311,70 @@ pub trait ObservationInputRescale<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn rescale_X(&mut self, l: &[T]);
+    fn rescale_X_with(&mut self, l: &[T]) {
+        #[cfg(debug_assertions)]
+        if l.len() != self.dim() {
+            panic!("Dimensions of new rescaling slice and memory do not match!");
+        }
+
+        let l = faer::col::from_slice::<T>(l);
+
+        //TODO: Avoid ref to private member?
+        self.X_mut().cols_mut().for_each(|col| {
+            zipped!(col, l).for_each(|unzipped!(mut col, l)| col.write(col.read() / l.read()));
+        });
+    }
 }
 
 pub trait ObservationOutputRescale<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn rescale_Y(&mut self, l: &T);
+    fn rescale_Y(&mut self) 
+    where
+        Self: ObservationMaxMin<T>, 
+        T: OrdSubset
+    {
+        if let Some(&max) = <Self as ObservationMaxMin<T>>::max_y(self) {
+            self.rescale_Y_with(&max)
+        }    
+    }
+
+    fn rescale_Y_with(&mut self, l: &T);
 }
 
 pub trait ObservationInputRecenter<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn recenter_X(&mut self, cen: &[T]);
+    fn recenter_X(&mut self) 
+    where
+        Self: ObservationMaxMin<T>, 
+        T: OrdSubset
+    {
+        if let Some(min) = <Self as ObservationMaxMin<T>>::min_x(self) {
+            self.recenter_X_with(&min.to_owned())
+        }    
+    }
+
+    fn recenter_X_with(&mut self, cen: &[T]);
 }
 
 pub trait ObservationOutputRecenter<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn recenter_Y(&mut self, cen: &T);
+    fn recenter_Y(&mut self) 
+    where
+        Self: ObservationMaxMin<T>, 
+        T: OrdSubset
+    {
+        if let Some(&min) = <Self as ObservationMaxMin<T>>::min_y(self) {
+            self.recenter_Y_with(&min)
+        }    
+    }
+    
+    fn recenter_Y_with(&mut self, cen: &T);
 }
 
 pub trait ObservationInputRotate<T>: ObservationIO<T>
@@ -393,8 +437,16 @@ where
         &self.X
     }
 
+    fn X_mut(&mut self) -> MatMut<T> {
+        self.X.as_mut()
+    }
+
     fn Y(&self) -> &[T] {
         self.Y.as_slice()
+    }
+
+    fn Y_mut(&mut self) -> &mut [T] {
+        self.Y.as_mut_slice()
     }
 
     fn append(&mut self, x: &[T], y: &T) {
