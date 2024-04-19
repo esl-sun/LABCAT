@@ -113,7 +113,7 @@ pub trait AskTell<T>
 where
     T: dtype,
 {
-    fn ask(&mut self) -> Vec<T>;
+    fn ask(&mut self) -> &[T];
     fn tell(&mut self, x: &[T], y: &T);
 }
 
@@ -159,7 +159,7 @@ where
     S: SurrogateIO<T>,
     A: AcqFunction<T, S>,
 {
-    fn ask(&mut self) -> Vec<T> {
+    fn ask(&mut self) -> &[T] {
         todo!()
     }
 
