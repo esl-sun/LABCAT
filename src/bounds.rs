@@ -1,4 +1,4 @@
-use faer::{Mat, MatRef};
+use faer::Mat;
 use itertools::izip;
 
 use crate::dtype;
@@ -17,11 +17,11 @@ where
 {
     fn ub(&self) -> &[T];
     fn lb(&self) -> &[T];
-    
+
     fn lb_ub(&self) -> impl DoubleEndedIterator<Item = (&T, &T)> {
         self.lb().iter().zip(self.ub().iter())
     }
-    
+
     fn as_mat(&self) -> Mat<T> {
         Mat::<T>::from_fn(self.dim(), 2, |i, j| match j {
             0 => self.lb()[i],

@@ -1,9 +1,7 @@
 #![allow(non_snake_case)]
 
-use std::{marker::PhantomData, usize};
-
 use egobox_doe::{Lhs, LhsKind, SamplingMethod};
-use faer::Mat;
+use faer::{Mat, MatRef};
 use faer_ext::{IntoFaer, IntoNdarray};
 use ndarray::{Array2, ArrayView2};
 use ndarray_rand::rand::{self, Rng};
@@ -35,7 +33,7 @@ where
     T: dtype + linfa::Float,
 {
     // #[allow(refining_impl_trait)]
-    fn build_DoE<B>(&mut self, n: usize, bounds: &B) 
+    fn build_DoE<B>(&mut self, n: usize, bounds: &B)
     where
         B: UpperLowerBounds<T>,
     {
@@ -52,6 +50,10 @@ where
         };
 
         self.doe = doe.view().into_faer().to_owned_mat()
+    }
+
+    fn DoE(&self) -> MatRef<T> {
+        self.doe.as_ref()
     }
 }
 
@@ -76,18 +78,25 @@ where
 
 impl<T> DoE<T> for RandomSampling<T>
 where
-    T: dtype + ndarray_rand::rand_distr::uniform::SampleUniform + PartialOrd,
+    T: dtype,
 {
-    fn build_DoE<B>(&mut self, n: usize, bounds: &B) 
+    fn build_DoE<B>(&mut self, n: usize, bounds: &B)
     where
         B: UpperLowerBounds<T>,
     {
-        self.doe = Array2::from_shape_fn(
-            (bounds.dim(), n), |(i, _)| {
-                rand::thread_rng().gen_range(bounds.lb()[i]..bounds.ub()[i])
-            })
+        self.doe = Array2::from_shape_fn((bounds.dim(), n), |(i, _)| {
+            T::from_f64(
+                rand::thread_rng()
+                    .gen_range(bounds.lb()[i].to_f64().unwrap()..bounds.ub()[i].to_f64().unwrap()),
+            )
+            .unwrap() //TODO: FIX UNWRAPS
+        })
         .view()
         .into_faer()
         .to_owned_mat()
+    }
+
+    fn DoE(&self) -> MatRef<T> {
+        self.doe.as_ref()
     }
 }
