@@ -1,10 +1,10 @@
-use faer::{Mat, MatRef};
+use faer::Mat;
 
-use crate::dtype;
+use crate::{bounds::UpperLowerBounds, dtype};
 
 pub trait DoE<T>: Default
 where
     T: dtype,
 {
-    fn build_DoE(&self, n: usize, bounds: MatRef<T>) -> Mat<T>;
+    fn build_DoE<B: UpperLowerBounds<T>>(&mut self, n: usize, bounds: &B);
 }

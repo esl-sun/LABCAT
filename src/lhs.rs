@@ -3,19 +3,20 @@
 use std::{marker::PhantomData, usize};
 
 use egobox_doe::{Lhs, LhsKind, SamplingMethod};
-use faer::{Mat, MatRef};
+use faer::Mat;
 use faer_ext::{IntoFaer, IntoNdarray};
 use ndarray::{Array2, ArrayView2};
 use ndarray_rand::rand::{self, Rng};
 use num_traits::Zero;
 
-use crate::{doe::DoE, dtype, utils::MatRefUtils};
+use crate::{bounds::UpperLowerBounds, doe::DoE, dtype, utils::MatRefUtils};
 
+#[derive(Debug, Clone)]
 pub struct LHS<T>
 where
     T: dtype,
 {
-    data_type: PhantomData<T>,
+    doe: Mat<T>,
 }
 
 impl<T> Default for LHS<T>
@@ -24,7 +25,7 @@ where
 {
     fn default() -> Self {
         Self {
-            data_type: PhantomData,
+            doe: Mat::default(),
         }
     }
 }
@@ -33,10 +34,13 @@ impl<T> DoE<T> for LHS<T>
 where
     T: dtype + linfa::Float,
 {
-    #[allow(refining_impl_trait)]
-    // fn build_DoE(&self, n: usize, bounds: MatRef<T>) -> impl IntoFaer<Faer = MatRef<T>> {
-    fn build_DoE(&self, n: usize, bounds: MatRef<T>) -> Mat<T> {
-        let b: ArrayView2<T> = bounds.into_ndarray();
+    // #[allow(refining_impl_trait)]
+    fn build_DoE<B>(&mut self, n: usize, bounds: &B) 
+    where
+        B: UpperLowerBounds<T>,
+    {
+        let m = bounds.as_mat();
+        let b: ArrayView2<T> = m.as_ref().into_ndarray();
 
         let doe = if n.is_zero() {
             Array2::zeros((b.nrows(), 0))
@@ -47,15 +51,16 @@ where
                 .reversed_axes()
         };
 
-        doe.view().into_faer().to_owned_mat()
+        self.doe = doe.view().into_faer().to_owned_mat()
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct RandomSampling<T>
 where
     T: dtype,
 {
-    data_type: PhantomData<T>,
+    doe: Mat<T>,
 }
 
 impl<T> Default for RandomSampling<T>
@@ -64,7 +69,7 @@ where
 {
     fn default() -> Self {
         Self {
-            data_type: PhantomData,
+            doe: Mat::default(),
         }
     }
 }
@@ -73,12 +78,14 @@ impl<T> DoE<T> for RandomSampling<T>
 where
     T: dtype + ndarray_rand::rand_distr::uniform::SampleUniform + PartialOrd,
 {
-    fn build_DoE(&self, n: usize, bounds: MatRef<T>) -> Mat<T> {
-        let b: ArrayView2<T> = bounds.into_ndarray();
-
-        Array2::from_shape_fn((b.nrows(), n), |(i, _)| {
-            rand::thread_rng().gen_range(b[(i, 0)]..b[(i, 1)])
-        })
+    fn build_DoE<B>(&mut self, n: usize, bounds: &B) 
+    where
+        B: UpperLowerBounds<T>,
+    {
+        self.doe = Array2::from_shape_fn(
+            (bounds.dim(), n), |(i, _)| {
+                rand::thread_rng().gen_range(bounds.lb()[i]..bounds.ub()[i])
+            })
         .view()
         .into_faer()
         .to_owned_mat()
