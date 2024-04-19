@@ -16,13 +16,31 @@ use crate::memory::{ObservationIO, ObservationMean};
 use crate::utils::MatMutUtils;
 use crate::{dtype, BayesianSurrogateIO, Kernel, Memory, Refit, RefitWith, SurrogateIO};
 
-pub trait GPSurrogate<T>: SurrogateIO<T> + BayesianSurrogateIO<T> + Kernel<T>
+pub trait GPSurrogate<T>: 
+    SurrogateIO<T> + BayesianSurrogateIO<T> + Kernel<T> + Memory<T, MemType: ObservationMean<T>>
 where
     T: dtype,
 {
     fn K(&self) -> MatRef<T>;
+    fn L(&self) -> &Cholesky<T>;
     fn alpha(&self) -> ColRef<T>;
-    fn log_lik(&self) -> Option<T>;
+    fn log_lik(&self) -> Option<T> {
+        let y_mean = self.memory().Y_mean()?;
+
+        Some(
+            (T::one() + T::one()).recip().neg() //-0.5
+            * zipped!(faer::col::from_slice::<T>(self.memory().Y()), self.alpha())
+                .map(|unzipped!(y, a)| (y.read() - y_mean) * a.read()).sum() // (y - y_mean).dot(alpha)
+            - zipped!(self.L().compute_l().diagonal().column_vector())
+                .map(|unzipped!(val)| val.ln()).sum(), // trace(ln(L)), precompute trace?
+        )
+    }
+
+    // fn prior(&self) -> Option<T> 
+    // where 
+    //     Self: Kernel<T, KernType: ARD<T>>;
+
+
     // fn chol_solve(&self, x: &[T]) -> Result<Col<T>>;
     // fn chol_solve_inplace(&self, x: &mut Col<T>) -> Result<()>;
 }
@@ -66,20 +84,12 @@ where
         self.K.as_ref()
     }
 
-    fn alpha(&self) -> ColRef<T> {
-        self.alpha.as_ref()
+    fn L(&self) -> &Cholesky<T> {
+        &self.L
     }
 
-    fn log_lik(&self) -> Option<T> {
-        let y_mean = self.mem.Y_mean()?;
-
-        Some(
-            (T::one() + T::one()).recip().neg() //-0.5
-            * zipped!(faer::col::from_slice::<T>(self.mem.Y()), self.alpha())
-                .map(|unzipped!(y, a)| (y.read() - y_mean) * a.read()).sum() // (y - y_mean).dot(alpha)
-            - zipped!(self.L.compute_l().diagonal().column_vector())
-                .map(|unzipped!(val)| val.ln()).sum(), // trace(ln(L)), precompute trace?
-        )
+    fn alpha(&self) -> ColRef<T> {
+        self.alpha.as_ref()
     }
 }
 
