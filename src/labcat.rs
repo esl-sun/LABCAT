@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 // use faer::FaerMat;
 use faer::{unzipped, zipped, Col, Mat, MatMut, MatRef, Row};
-use ord_subset::OrdSubset;
+use ord_subset::{OrdSubset, OrdSubsetIterExt};
 
 use crate::{
     bounds::{Bounds, ContinuousBounds, UpperLowerBounds},
@@ -9,10 +9,11 @@ use crate::{
     dtype,
     ei::AcqFunction,
     kernel::ARD,
+    lhs::RandomSampling,
     memory::{
-        BaseMemory, ObservationIO, ObservationInputRecenter, ObservationInputRescale,
-        ObservationInputRotate, ObservationMaxMin, ObservationMean, ObservationOutputRecenter,
-        ObservationOutputRescale, ObservationTransform,
+        BaseMemory, ObservationDiscard, ObservationIO, ObservationInputRecenter,
+        ObservationInputRescale, ObservationInputRotate, ObservationMaxMin, ObservationMean,
+        ObservationOutputRecenter, ObservationOutputRescale, ObservationTransform,
     },
     utils::{ColRefUtils, MatMutUtils, MatRefUtils},
     AskTell, Kernel, Memory, Refit, Surrogate, SurrogateIO,
@@ -31,7 +32,7 @@ where
     tr: ContinuousBounds<T>,
     doe: D,
     mem: BaseMemory<T>,
-    acq_func: A,
+    acq: A,
     surrogate: S,
     f_init: fn(usize) -> usize,
     f_discard: fn(usize) -> usize,
@@ -48,19 +49,19 @@ where
     pub fn new(d: usize, beta: T, bounds: B) -> LABCAT<T, S, A, B, D> {
         let tr = ContinuousBounds::<T>::scaled_unit(d, beta);
 
-        let f_init = |d| 2*d + 1;
+        let f_init = |d| 2 * d + 1;
         let mut doe = D::default();
-        doe.build_DoE(f_init(d), &bounds); 
-        
+        doe.build_DoE(f_init(d), &bounds);
+
         Self {
             bounds,
             tr,
             doe,
             mem: BaseMemory::new(d),
-            acq_func: A::default(),
+            acq: A::default(),
             surrogate: S::new(d),
             f_init,
-            f_discard: |d| 7*d,
+            f_discard: |d| 7 * d,
         }
     }
 
@@ -82,42 +83,72 @@ where
     B: Bounds<T>,
     D: DoE<T>,
 {
-    fn ask(&mut self) -> Vec<T> {
-        todo!()
+    fn ask(&mut self) -> &[T] {
+        let mut random_ei_pts = RandomSampling::default();
+        random_ei_pts.build_DoE(10 * self.bounds.dim(), &self.tr);
+
+        dbg!(self.memory().X());
+        dbg!(self.surrogate().memory().X());
+        dbg!(self.surrogate().memory().X_prime());
+
+        let a = random_ei_pts
+            .DoE()
+            .cols()
+            .enumerate()
+            .map(|(i, col)| {
+                let acq = self.acq.probe(self.surrogate(), col.as_slice()).unwrap();
+                (i, acq)
+            })
+            .ord_subset_max_by_key(|&(_, ei)| ei)
+            .unwrap();
+
+        dbg!(a);
+
+        unsafe {
+            core::slice::from_raw_parts(random_ei_pts.DoE().col(a.0).as_ptr(), self.bounds.dim())
+        } // UNSAFE UNSAFE UNSAFE
     }
 
     fn tell(&mut self, x: &[T], y: &T) {
-        self.mem.append(x, y);
+        //TODO: Handle DoE init
 
+        self.memory_mut().append(x, y);
+        self.surrogate_mut().memory_mut().append(x, y);
         // TODO: abstract LABCAT routine into trait
 
         self.surrogate_mut().memory_mut().recenter_Y();
         self.surrogate_mut().memory_mut().rescale_Y();
-
+        dbg!(x);
+        dbg!("HERE1");
         self.surrogate_mut().memory_mut().recenter_X();
+        dbg!("HERE2");
         self.surrogate_mut().memory_mut().rotate_X();
-
+        dbg!("HERE3");
         let l = self.surrogate().kernel().l().to_owned();
 
         self.surrogate_mut().memory_mut().rescale_X_with(&l);
-
+        dbg!("HERE3");
         // TODO: impl m parameter
         let idx_discard: Vec<usize> = self
             .surrogate()
             .memory()
             .X()
             .cols()
+            .inspect(|x| {
+                dbg!(x);
+            })
             .enumerate()
             .filter(|(_, col)| !self.tr.inside(col.as_slice()))
             .map(|(i, _)| i)
             .take((self.f_discard)(self.bounds.dim()))
             .collect();
 
-        self.surrogate_mut().memory_mut().discard_mult(idx_discard);
+        // self.surrogate_mut().memory_mut().discard_mult(idx_discard);
+        dbg!("HERE4");
         //....
         self.surrogate_mut().refit().unwrap();
 
-        todo!()
+        // todo!()
     }
 }
 
@@ -137,6 +168,25 @@ where
 
     fn surrogate_mut(&mut self) -> &mut Self::SurType {
         &mut self.surrogate
+    }
+}
+
+impl<T, S, A, B, D> Memory<T> for LABCAT<T, S, A, B, D>
+where
+    T: dtype,
+    S: SurrogateIO<T> + Kernel<T, KernType: ARD<T>> + Memory<T, MemType = LabcatMemory<T>>,
+    A: AcqFunction<T, S>,
+    B: Bounds<T>,
+    D: DoE<T>,
+{
+    type MemType = BaseMemory<T>;
+
+    fn memory(&self) -> &Self::MemType {
+        &self.mem
+    }
+
+    fn memory_mut(&mut self) -> &mut Self::MemType {
+        &mut self.mem
     }
 }
 
@@ -181,7 +231,7 @@ where
         self.base_mem.n()
     }
 
-    fn X(&self) -> &Mat<T> {
+    fn X(&self) -> MatRef<T> {
         self.base_mem.X()
     }
 
@@ -198,13 +248,18 @@ where
     }
 
     fn append(&mut self, x: &[T], y: &T) {
-        self.base_mem.append(x, y)
+        let x = &self.R_inv * &self.S_inv * (faer::col::from_slice::<T>(x) - &self.X_offset);
+        let y = (*y - self.y_offset) / self.y_scale;
+        self.base_mem.append(x.as_slice(), &y)
     }
 
     fn append_mult(&mut self, X: MatRef<T>, Y: &[T]) {
-        self.base_mem.append_mult(X, Y)
+        self.base_mem.append_mult(X, Y);
+        // todo!() //TODO: transform
     }
+}
 
+impl<T: dtype> ObservationDiscard<T> for LabcatMemory<T> {
     fn discard(&mut self, i: usize) {
         self.base_mem.discard(i)
     }
@@ -230,9 +285,6 @@ impl<T: dtype> ObservationTransform<T> for LabcatMemory<T> {
     }
 
     fn X_prime(&self) -> Mat<T> {
-        dbg!(&self.S);
-        dbg!(&self.X());
-        dbg!(&self.X_offset);
         let mut X_prime = self.R.as_ref() * self.S.as_ref() * self.base_mem.X().as_ref();
         X_prime.as_mut().cols_mut().for_each(|col| {
             zipped!(col, self.X_offset.as_ref())
@@ -333,6 +385,12 @@ impl<T: dtype> ObservationOutputRecenter<T> for LabcatMemory<T> {
 impl<T: dtype> ObservationOutputRescale<T> for LabcatMemory<T> {
     fn rescale_Y_with(&mut self, l: &T) {
         // TODO: check cap on l if all equal
+
+        // Cannot divide by zero
+        if *l == T::zero() {
+            return;
+        }
+
         zipped!(self.base_mem.Y.as_mut(),)
             .for_each(|unzipped!(mut y)| y.write(y.read() * l.recip()));
 
