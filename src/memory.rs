@@ -1,24 +1,43 @@
 #![allow(non_snake_case)]
 
 use faer::modules::core::AsMatRef;
-use faer::{zipped, unzipped, Mat, MatMut, MatRef, Row};
+use faer::{unzipped, zipped, Mat, MatMut, MatRef, Row};
 use ord_subset::{OrdSubset, OrdSubsetIterExt};
 
-use crate::{dtype, utils::{MatUtils, MatMutUtils, RowMutUtils}};
+use crate::utils::{Axis, RowRefUtils, Select};
+use crate::{
+    dtype,
+    utils::{MatMutUtils, MatRefUtils, RowMutUtils},
+};
 
-pub trait ObservationIO<T>
+pub trait ObservationIO<T>: Clone
 where
     T: dtype,
 {
     fn new(d: usize) -> Self;
     fn dim(&self) -> usize;
     fn n(&self) -> usize;
-    fn X(&self) -> &Mat<T>;
+    fn X(&self) -> MatRef<T>;
     fn X_mut(&mut self) -> MatMut<T>;
     fn Y(&self) -> &[T];
     fn Y_mut(&mut self) -> &mut [T];
     fn append(&mut self, x: &[T], y: &T);
     fn append_mult(&mut self, X: MatRef<T>, Y: &[T]);
+}
+
+// pub(crate) trait Raw<T>
+// where
+//     T: dtype,
+// {
+//     fn X_raw(&self) -> &Mat<T>;
+// }
+
+// impl<M: ObservationIO<T>, T: dtype> Raw<T> for M {}
+
+pub trait ObservationDiscard<T>: ObservationIO<T>
+where
+    T: dtype,
+{
     fn discard(&mut self, i: usize);
     fn discard_mult(&mut self, idx: Vec<usize>);
     fn discard_all(&mut self);
@@ -36,7 +55,10 @@ where
             .iter()
             .enumerate()
             .ord_subset_max_by_key(|&(_, x)| x)?;
-        let x_max = self.X().col_as_slice(i);
+
+        let ptr = self.X().as_mat_ref().ptr_at(0, i);
+        let x_max = unsafe { core::slice::from_raw_parts(ptr, self.n()) }; // Safety: i and n should always be in bounds, X stays in memory
+
         Some((i, x_max, y_max))
     }
 
@@ -48,7 +70,10 @@ where
             .iter()
             .enumerate()
             .ord_subset_min_by_key(|&(_, x)| x)?;
-        let x_min = self.X().col_as_slice(i);
+
+        let ptr = self.X().as_mat_ref().ptr_at(0, i);
+        let x_min = unsafe { core::slice::from_raw_parts(ptr, self.dim()) }; // Safety: i and n should always be in bounds, X stays in memory
+
         Some((i, x_min, y_min))
     }
 
@@ -93,7 +118,7 @@ where
     #[track_caller]
     fn max_quantile(&self, gamma: &T) -> (Self, Self)
     where
-        Self: Sized + Clone,
+        Self: Sized + Clone + ObservationDiscard<T>,
     {
         #[cfg(debug_assertions)]
         if *gamma < T::zero() || *gamma > T::one() {
@@ -131,7 +156,7 @@ where
     #[track_caller]
     fn min_quantile(&self, gamma: &T) -> (Self, Self)
     where
-        Self: Sized + Clone,
+        Self: Sized + Clone + ObservationDiscard<T>,
     {
         #[cfg(debug_assertions)]
         if *gamma < T::zero() || *gamma > T::one() {
@@ -330,14 +355,14 @@ pub trait ObservationOutputRescale<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn rescale_Y(&mut self) 
+    fn rescale_Y(&mut self)
     where
-        Self: ObservationMaxMin<T>, 
-        T: OrdSubset
+        Self: ObservationMaxMin<T>,
+        T: OrdSubset,
     {
         if let Some(&max) = <Self as ObservationMaxMin<T>>::max_y(self) {
             self.rescale_Y_with(&max)
-        }    
+        }
     }
 
     fn rescale_Y_with(&mut self, l: &T);
@@ -347,14 +372,14 @@ pub trait ObservationInputRecenter<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn recenter_X(&mut self) 
+    fn recenter_X(&mut self)
     where
-        Self: ObservationMaxMin<T>, 
-        T: OrdSubset
+        Self: ObservationMaxMin<T>,
+        T: OrdSubset,
     {
         if let Some(min) = <Self as ObservationMaxMin<T>>::min_x(self) {
             self.recenter_X_with(&min.to_owned())
-        }    
+        }
     }
 
     fn recenter_X_with(&mut self, cen: &[T]);
@@ -364,16 +389,16 @@ pub trait ObservationOutputRecenter<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn recenter_Y(&mut self) 
+    fn recenter_Y(&mut self)
     where
-        Self: ObservationMaxMin<T>, 
-        T: OrdSubset
+        Self: ObservationMaxMin<T>,
+        T: OrdSubset,
     {
         if let Some(&min) = <Self as ObservationMaxMin<T>>::min_y(self) {
             self.recenter_Y_with(&min)
-        }    
+        }
     }
-    
+
     fn recenter_Y_with(&mut self, cen: &T);
 }
 
@@ -433,8 +458,8 @@ where
         self.X.ncols()
     }
 
-    fn X(&self) -> &Mat<T> {
-        &self.X
+    fn X(&self) -> MatRef<T> {
+        self.X.as_ref()
     }
 
     fn X_mut(&mut self) -> MatMut<T> {
@@ -485,17 +510,24 @@ where
         self.X
             .resize_with(self.dim(), old_n + Y.len(), |i, j| *X.get(i, j - old_n));
     }
+}
 
+impl<T> ObservationDiscard<T> for BaseMemory<T>
+where
+    T: dtype,
+{
     fn discard(&mut self, i: usize) {
-        self.X.remove_cols(vec![i]);
-        // self.Y.rem_at_indices(indices);
-        todo!()
+        self.X = self
+            .X()
+            .get_submatrix_with_idx(Select::Exclude, Axis::Col, vec![i]);
+        self.Y = faer::row::from_slice::<T>(self.Y()).get_subrow_with_idx(Select::Exclude, vec![i]);
     }
 
     fn discard_mult(&mut self, idx: Vec<usize>) {
-        self.X.remove_cols(idx);
-        // self.Y.rem_at_indices(indices);
-        todo!()
+        self.X = self
+            .X()
+            .get_submatrix_with_idx(Select::Exclude, Axis::Col, idx.clone());
+        self.Y = faer::row::from_slice::<T>(self.Y()).get_subrow_with_idx(Select::Exclude, idx);
     }
 
     fn discard_all(&mut self) {

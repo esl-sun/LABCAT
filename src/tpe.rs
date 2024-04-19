@@ -8,7 +8,7 @@ use ord_subset::OrdSubset;
 
 use crate::kde::KDE;
 use crate::kernel::BaseKernel;
-use crate::memory::{ObservationIO, ObservationMaxMin};
+use crate::memory::{ObservationDiscard, ObservationIO, ObservationMaxMin};
 use crate::{dtype, Memory, Refit, RefitWith, SurrogateIO};
 
 pub trait TPESurrogate<T>
@@ -17,6 +17,9 @@ where
 {
     type Surrogate_l: SurrogateIO<T>;
     type Surrogate_g: SurrogateIO<T>;
+
+    fn gamma(&self) -> &T;
+    fn set_gamma(&mut self, gamma: &T);
 
     fn l(&self) -> &Self::Surrogate_l;
     fn probe_l(&self, x: &[T]) -> Option<T> {
@@ -51,15 +54,6 @@ where
     KG: BaseKernel<T> + Default,
     M: ObservationIO<T> + ObservationMaxMin<T>,
 {
-    fn new(d: usize, gamma: T) -> Self {
-        Self {
-            data_type: PhantomData,
-            mem: ObservationIO::new(0),
-            gamma,
-            l: KDE::<T, KL>::new(d),
-            g: KDE::<T, KG>::new(d),
-        }
-    }
 }
 
 impl<T, KL, KG, M> Default for TPE<T, KL, KG, M>
@@ -90,6 +84,14 @@ where
     type Surrogate_l = KDE<T, KL>;
 
     type Surrogate_g = KDE<T, KG>;
+
+    fn gamma(&self) -> &T {
+        &self.gamma
+    }
+
+    fn set_gamma(&mut self, gamma: &T) {
+        self.gamma = *gamma;
+    }
 
     fn l(&self) -> &Self::Surrogate_l {
         &self.l
@@ -123,16 +125,16 @@ where
     KL: BaseKernel<T>,
     KG: BaseKernel<T>,
     M: ObservationIO<T> + ObservationMaxMin<T>,
-    MI: ObservationIO<T> + ObservationMaxMin<T> + Clone,
+    MI: ObservationIO<T> + ObservationMaxMin<T> + ObservationDiscard<T>,
 {
     // #[allow(refining_impl_trait)]
     fn refit_from(&mut self, mem: &MI) -> Result<()> {
-        self.mem.discard_all();
+        self.mem = M::new(self.mem.dim());
         self.mem.append_mult(mem.X().as_ref(), mem.Y());
 
         let (m_l, m_g) = mem.min_quantile(&self.gamma); //TODO: match on argmax/argmin optimzation
         self.l.refit_from(&m_l)?;
-        self.l.refit_from(&m_g)?;
+        self.g.refit_from(&m_g)?;
         Ok(())
     }
 }
