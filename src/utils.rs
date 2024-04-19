@@ -1,6 +1,6 @@
 use std::ops::IndexMut;
 
-use faer::modules::core::{AsColRef, AsMatMut, AsMatRef, AsRowRef};
+use faer::modules::core::{AsColRef, AsColMut, AsMatMut, AsMatRef, AsRowRef, AsRowMut};
 use faer::{col, row, unzipped, zipped, ColMut, ColRef, Mat, RowMut, RowRef, Side};
 // use ndarray::{Array, Ix2};
 
@@ -51,6 +51,26 @@ where
 
 impl<E: dtype, M: AsColRef<E>> ColRefUtils<E> for M {}
 
+pub trait ColMutUtils<E>
+where
+    Self: AsColMut<E>,
+    E: dtype,
+{
+    #[inline]
+    #[track_caller]
+    fn as_mut_slice(&mut self) -> &mut [E] {
+        let nrows = self.as_col_mut().nrows();
+        let ptr = self.as_col_mut().as_ptr_mut();
+        E::faer_map(
+            ptr,
+            #[inline(always)]
+            |ptr| unsafe { core::slice::from_raw_parts_mut(ptr, nrows) },
+        )
+    }
+}
+
+impl<E: dtype, M: AsColMut<E>> ColMutUtils<E> for M {}
+
 pub trait RowRefUtils<E>
 where
     Self: AsRowRef<E>,
@@ -70,6 +90,27 @@ where
 }
 
 impl<E: dtype, M: AsRowRef<E>> RowRefUtils<E> for M {}
+
+pub trait RowMutUtils<E>
+where
+    Self: AsRowMut<E>,
+    E: dtype,
+{
+    #[inline]
+    #[track_caller]
+    fn as_mut_slice(&mut self) -> &mut [E] {
+        let ncols = self.as_row_mut().ncols();
+        let ptr = self.as_row_mut().as_ptr_mut();
+        E::faer_map(
+            ptr,
+            #[inline(always)]
+            |ptr| unsafe { core::slice::from_raw_parts_mut(ptr, ncols) },
+        )
+    }
+}
+
+impl<E: dtype, M: AsRowMut<E>> RowMutUtils<E> for M {}
+
 
 pub trait MatRefUtils<E>
 where
