@@ -14,7 +14,7 @@ where
     T: dtype,
     S: SurrogateIO<T>,
 {
-    fn probe_acq(&self, surrogate: &S, x: &[T]) -> Option<T>;
+    fn probe(&self, surrogate: &S, x: &[T]) -> Option<T>;
 }
 
 pub trait AcqJacobian<T, S>: AcqFunction<T, S>
@@ -66,7 +66,7 @@ where
     T: dtype + OrdSubset,
     S: SurrogateIO<T> + BayesianSurrogateIO<T> + Memory<T, MemType: ObservationMaxMin<T>>,
 {
-    fn probe_acq(&self, surrogate: &S, x: &[T]) -> Option<T> {
+    fn probe(&self, surrogate: &S, x: &[T]) -> Option<T> {
         let mean = surrogate.probe(x)?;
         let sigma = surrogate.probe_variance(x)?.sqrt();
         let min = *surrogate
@@ -148,7 +148,7 @@ where
     T: dtype + OrdSubset,
     S: SurrogateIO<T> + TPESurrogate<T>,
 {
-    fn probe_acq(&self, surrogate: &S, x: &[T]) -> Option<T> {
+    fn probe(&self, surrogate: &S, x: &[T]) -> Option<T> {
         Some(surrogate.l().probe(x)? / surrogate.g().probe(x)?)
     }
 }
