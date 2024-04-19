@@ -13,10 +13,10 @@ use faer::{unzipped, zipped, Col, ColRef, Mat, MatRef};
 use crate::kernel::{BaseKernel, BayesianKernel};
 use crate::memory::{ObservationIO, ObservationMean};
 // use crate::ndarray_utils::{Array1IntoFaerRowCol, Array2Utils, ArrayView2Utils, RowColIntoNdarray};
-use crate::utils::MatMutUtils;
+use crate::utils::{MatMutUtils, MatRefUtils};
 use crate::{dtype, BayesianSurrogateIO, Kernel, Memory, Refit, RefitWith, SurrogateIO};
 
-pub trait GPSurrogate<T>: 
+pub trait GPSurrogate<T>:
     SurrogateIO<T> + BayesianSurrogateIO<T> + Kernel<T> + Memory<T, MemType: ObservationMean<T>>
 where
     T: dtype,
@@ -36,10 +36,9 @@ where
         )
     }
 
-    // fn prior(&self) -> Option<T> 
-    // where 
+    // fn prior(&self) -> Option<T>
+    // where
     //     Self: Kernel<T, KernType: ARD<T>>;
-
 
     // fn chol_solve(&self, x: &[T]) -> Result<Col<T>>;
     // fn chol_solve_inplace(&self, x: &mut Col<T>) -> Result<()>;
@@ -103,12 +102,12 @@ where
         Self {
             dim: d,
             kernel: BaseKernel::new(d),
-            K: Mat::identity(d, d),
-            Kinv: Mat::identity(d, d),
-            L: Mat::<T>::identity(d, d)
+            K: Mat::identity(0, 0),
+            Kinv: Mat::identity(0, 0),
+            L: Mat::<T>::identity(0, 0)
                 .cholesky(faer::Side::Lower)
                 .expect("Should never fail during init."),
-            alpha: Col::zeros(d),
+            alpha: Col::zeros(0),
             mem: M::new(d),
         }
     }
@@ -156,6 +155,7 @@ where
 
         self.K.resize_with(n, n, |_, _| T::zero());
 
+        //Calc lower triangular of K
         zipped!(&mut self.K).for_each_triangular_lower_with_index(
             Diag::Include,
             |i, j, unzipped!(mut v)| {
@@ -166,6 +166,7 @@ where
             },
         );
 
+        //Fill upper triangular to ensure symmetry
         self.K.fill_with_side(faer::Side::Lower);
 
         self.L = self.K.cholesky(faer::Side::Lower)?;
@@ -205,11 +206,11 @@ where
 {
     type MemType = M;
 
-    fn memory(&self) -> &M {
+    fn memory(&self) -> &Self::MemType {
         &self.mem
     }
 
-    fn memory_mut(&mut self) -> &mut M {
+    fn memory_mut(&mut self) -> &mut Self::MemType {
         &mut self.mem
     }
 }
