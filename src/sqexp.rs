@@ -6,6 +6,7 @@ use num_traits::real::Real;
 use crate::{
     dtype,
     kernel::{Bandwidth, BaseKernel, BayesianKernel, ARD},
+    utils::DtypeUtils,
 };
 
 #[derive(Clone, Debug)]
@@ -40,7 +41,7 @@ where
         }
 
         let dif = &p - &q;
-        let exponent = (T::one() + T::one()).recip().neg() * dif.dot(&dif) / self.l; // -0.5 * ...
+        let exponent = T::half().neg() * dif.dot(&dif) / self.l; // -0.5 * ...
         let val: T = self.sigma_f().powi(2) * exponent.exp();
 
         match &p.eq(&q) {
@@ -122,7 +123,7 @@ where
         }
 
         let dif = &p - &q;
-        let exponent = T::neg(T::one() / (T::one() + T::one())) * dif.dot(&self.l_inv).dot(&dif); // -0.5 * ...
+        let exponent = T::half().neg() * dif.dot(&self.l_inv).dot(&dif); // -0.5 * ...
         let val: T = self.sigma_f().powi(2) * exponent.exp();
 
         match &p.eq(&q) {

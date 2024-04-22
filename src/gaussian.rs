@@ -5,6 +5,7 @@ use simba::scalar::RealField;
 use crate::{
     dtype,
     kernel::{Bandwidth, BaseKernel, PDF},
+    utils::DtypeUtils,
 };
 
 #[derive(Clone, Debug)]
@@ -34,16 +35,14 @@ where
         }
 
         let dif = &p - &q;
-        let two = T::one() + T::one();
         //TODO: .. / h^2 ?
-        let exponent = T::neg(Real::recip(two)) * dif.dot(&dif) / self.h; // -0.5 * ...
-        let norm_factor = T::one()
-            / Real::sqrt(Real::powi(
-                two * RealField::pi() * self.h,
+        let exponent = T::neg(T::half()) * dif.dot(&dif) / self.h; // -0.5 * ...
+        let norm_factor = Real::recip(Real::sqrt(Real::powi(
+                T::two_pi() * self.h,
                 self.dim
                     .try_into()
                     .expect("Converting usize to i32 should not fail!"),
-            ));
+            )));
 
         norm_factor * Real::exp(exponent)
     }

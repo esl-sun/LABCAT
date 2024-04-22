@@ -4,6 +4,7 @@ use num_traits::real::Real;
 use crate::{
     dtype,
     kernel::{Bandwidth, BaseKernel, PDF},
+    utils::DtypeUtils,
 };
 
 #[derive(Clone, Debug)]
@@ -41,7 +42,7 @@ where
         if dif.iter().all(|val| val.abs() <= T::one() / self.h) {
             // all within 1/h box
             Real::powi(
-                T::one() / (T::one() + T::one()) * T::one() / self.h,
+                Real::recip(T::two() * self.h),
                 self.dim
                     .try_into()
                     .expect("Conversion from usize to i32 should not fail!"),

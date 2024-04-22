@@ -20,6 +20,20 @@ pub enum Axis {
     Row,
 }
 
+pub trait DtypeUtils<E> 
+where
+    E: dtype,
+{
+    fn two() -> E {
+        E::one() + E::one()
+    }
+    fn half() -> E {
+        Self::two().recip()
+    }
+}
+
+impl<E: dtype> DtypeUtils<E> for E {}
+
 // pub trait IntoOwnedFaer {
 //     type Faer;
 //     #[track_caller]
@@ -248,6 +262,17 @@ where
         })
     }
 
+    #[inline]
+    #[track_caller]
+    fn product_trace(&self, rhs: impl AsMatRef<E>) -> E {
+        self.cols()
+            .zip(rhs.rows())
+            .map(|(col, row)| row * col)
+            .fold(E::zero(), |acc, prod| acc + prod)
+    }
+
+    #[inline]
+    #[track_caller]
     fn get_submatrix_with_idx(&self, select: Select, axis: Axis, mut idx: Vec<usize>) -> Mat<E> {
         idx.sort(); //sort vec
         idx.dedup(); //remove duplicates
