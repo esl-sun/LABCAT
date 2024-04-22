@@ -84,16 +84,13 @@ where
     where
         B: UpperLowerBounds<T>,
     {
-        self.doe = Array2::from_shape_fn((bounds.dim(), n), |(i, _)| {
+        self.doe = Mat::from_fn(bounds.dim(), n, |i, _| {
             T::from_f64(
                 rand::thread_rng()
                     .gen_range(bounds.lb()[i].to_f64().unwrap()..bounds.ub()[i].to_f64().unwrap()),
             )
             .unwrap() //TODO: FIX UNWRAPS
         })
-        .view()
-        .into_faer()
-        .to_owned_mat()
     }
 
     fn DoE(&self) -> MatRef<T> {
