@@ -22,6 +22,7 @@ where
     T: dtype,
 {
     fn K(&self) -> MatRef<T>;
+    fn K_inv(&self) -> MatRef<T>;
     fn L(&self) -> &Cholesky<T>;
     fn alpha(&self) -> ColRef<T>;
     fn log_lik(&self) -> Option<T> {
@@ -81,6 +82,10 @@ where
 {
     fn K(&self) -> MatRef<T> {
         self.K.as_ref()
+    }
+
+    fn K_inv(&self) -> MatRef<T> {
+        self.Kinv.as_ref()
     }
 
     fn L(&self) -> &Cholesky<T> {
