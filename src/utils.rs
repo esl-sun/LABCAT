@@ -20,7 +20,7 @@ pub enum Axis {
     Row,
 }
 
-pub trait DtypeUtils<E> 
+pub trait DtypeUtils<E>
 where
     E: dtype,
 {

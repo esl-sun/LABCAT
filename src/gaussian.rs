@@ -38,11 +38,11 @@ where
         //TODO: .. / h^2 ?
         let exponent = T::neg(T::half()) * dif.dot(&dif) / self.h; // -0.5 * ...
         let norm_factor = Real::recip(Real::sqrt(Real::powi(
-                T::two_pi() * self.h,
-                self.dim
-                    .try_into()
-                    .expect("Converting usize to i32 should not fail!"),
-            )));
+            T::two_pi() * self.h,
+            self.dim
+                .try_into()
+                .expect("Converting usize to i32 should not fail!"),
+        )));
 
         norm_factor * Real::exp(exponent)
     }
