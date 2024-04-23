@@ -11,7 +11,6 @@ use crate::{
     utils::MatMutUtils,
 };
 
-
 #[derive(Clone, Debug)]
 pub struct LabcatMemory<T>
 where
@@ -51,6 +50,10 @@ where
 
     fn n(&self) -> usize {
         self.base_mem.n()
+    }
+
+    fn i(&self, i: usize) -> (&[T], &T) {
+        self.base_mem.i(i)
     }
 
     fn X(&self) -> MatRef<T> {

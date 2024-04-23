@@ -17,6 +17,7 @@ where
     fn new(d: usize) -> Self;
     fn dim(&self) -> usize;
     fn n(&self) -> usize;
+    fn i(&self, i: usize) -> (&[T], &T);
     fn X(&self) -> MatRef<T>;
     fn X_mut(&mut self) -> MatMut<T>;
     fn Y(&self) -> &[T];
@@ -24,15 +25,6 @@ where
     fn append(&mut self, x: &[T], y: &T);
     fn append_mult(&mut self, X: MatRef<T>, Y: &[T]);
 }
-
-// pub(crate) trait Raw<T>
-// where
-//     T: dtype,
-// {
-//     fn X_raw(&self) -> &Mat<T>;
-// }
-
-// impl<M: ObservationIO<T>, T: dtype> Raw<T> for M {}
 
 pub trait ObservationDiscard<T>: ObservationIO<T>
 where
@@ -456,6 +448,13 @@ where
 
     fn n(&self) -> usize {
         self.X.ncols()
+    }
+
+    fn i(&self, i: usize) -> (&[T], &T) {
+        let ptr = self.X().as_mat_ref().ptr_at(0, i);
+        let x = unsafe { core::slice::from_raw_parts(ptr, self.n()) }; // Safety: i and n should always be in bounds, X stays in memory
+
+        (x, &self.Y()[i])
     }
 
     fn X(&self) -> MatRef<T> {
