@@ -7,18 +7,19 @@ use crate::{
     dtype,
     ei::AcqFunction,
     kernel::ARD,
+    labcat::memory::LabcatMemory,
     lhs::RandomSampling,
     memory::{
-        BaseMemory, ObservationIO, ObservationInputRecenter,
-        ObservationInputRescale, ObservationInputRotate,
-        ObservationOutputRecenter, ObservationOutputRescale, ObservationTransform,
+        BaseMemory, ObservationIO, ObservationInputRecenter, ObservationInputRescale,
+        ObservationInputRotate, ObservationOutputRecenter, ObservationOutputRescale,
+        ObservationTransform,
     },
     utils::{ColRefUtils, MatRefUtils},
-    AskTell, Kernel, Memory, Refit, Surrogate, SurrogateIO, SurrogateTune,
-    labcat::memory::LabcatMemory
+    AskTell, Kernel, Memory, Refit, Surrogate, SurrogateIO,
 };
 
 pub mod memory;
+pub mod tune;
 
 #[derive(Debug, Clone)]
 pub struct LABCAT<T, S, A, B, D>
@@ -74,13 +75,12 @@ where
 
 impl<T, S, A, B, D> AskTell<T> for LABCAT<T, S, A, B, D>
 where
-    Self: Surrogate<T, SurType = S>,
     T: dtype + OrdSubset,
     S: SurrogateIO<T>
         + Kernel<T, KernType: ARD<T>>
         + Memory<T, MemType = LabcatMemory<T>>
-        + Refit<T>
-        + SurrogateTune<T>,
+        + Refit<T>,
+
     A: AcqFunction<T, S>,
     B: Bounds<T>,
     D: DoE<T>,
@@ -122,16 +122,16 @@ where
         self.surrogate_mut().memory_mut().rescale_Y();
 
         self.surrogate_mut().memory_mut().recenter_X();
-        
+
         self.surrogate_mut().memory_mut().rotate_X();
 
         //MAX LOG LIK
-        self.surrogate_mut().tune().unwrap();
-        
+        // self.surrogate_mut().tune().unwrap();
+
         let l = self.surrogate().kernel().l().to_owned();
 
         self.surrogate_mut().memory_mut().rescale_X_with(&l);
-        
+
         // TODO: impl m parameter
         let _idx_discard: Vec<usize> = self
             .surrogate()

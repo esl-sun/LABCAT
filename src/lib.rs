@@ -2,6 +2,7 @@
 // #![feature(trait_alias)]
 // #![feature(min_specialization)]
 // #![feature(associated_type_bounds)]
+#![feature(associated_type_defaults)]
 //Fallible
 // #![feature(try_trait_v2)]
 // #![feature(const_trait_impl)]
@@ -29,6 +30,7 @@ pub mod memory;
 pub mod ndarray_utils;
 pub mod sqexp;
 pub mod tpe;
+pub mod tune;
 pub mod uniform;
 pub mod utils;
 
@@ -65,7 +67,6 @@ pub trait Refit<T>
 where
     T: dtype,
 {
-    // fn refit_from(&mut self, mem: &impl ObservationIO<T>) -> Result<()>;
     fn refit(&mut self) -> Result<()>
     where
         Self: Memory<T>;
