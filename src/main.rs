@@ -1,22 +1,17 @@
 use faer::{unzipped, zipped, Col, Mat, Row};
 use faer_ext::{IntoFaer, IntoNdarray};
 
-use faer::linalg::zip::{Diag, MatIndex};
+use faer::linalg::zip::Diag;
 
 use labcat::bounds::ContinuousBounds;
 use labcat::ei::AcqFunction;
 use labcat::gp::GPSurrogate;
 use labcat::kernel::{BaseKernel, BayesianKernel, KernelSum, ARD};
-use labcat::labcat::LabcatMemory;
+use labcat::labcat::{LabcatMemory, LABCAT};
 use labcat::lhs::LHS;
-use labcat::memory::{
-    BaseMemory, ObservationIO, ObservationInputRecenter, ObservationInputRescale,
-    ObservationInputRotate, ObservationOutputRecenter, ObservationOutputRescale,
-    ObservationTransform,
-};
-use labcat::sqexp::SqExp;
-use labcat::utils::{MatMutUtils, MatRefUtils, MatUtils};
-use labcat::{ei::EI, gp::GP, kde::KDE, sqexp::SqExpARD, SMBO};
+use labcat::memory::{BaseMemory, ObservationIO, ObservationTransform};
+use labcat::utils::{Axis, MatMutUtils, MatRefUtils, MatUtils, Select};
+use labcat::{ei::EI, gp::GP, kde::KDE, sqexp::SqExpARD};
 use labcat::{AskTell, BayesianSurrogateIO, Kernel, Memory, RefitWith, SurrogateIO};
 
 fn main() {
@@ -69,8 +64,9 @@ fn main() {
         });
     dbg!(&i);
 
-    dbg!(i.remove_cols(vec![1, 2]));
-    dbg!(i.remove_rows(vec![0, 2]));
+    dbg!(i.get_submatrix_with_idx(Select::Include, Axis::Col, vec![1, 2]));
+    dbg!(i.get_submatrix_with_idx(Select::Exclude, Axis::Row, vec![0, 2]));
+    // dbg!(i.remove_rows(vec![0, 2]));
     // dbg!(i.remove_rows(vec![0,]));
 
     // let mut mu = i.get_mut(0, 0..i.ncols());
@@ -169,6 +165,19 @@ fn main() {
 
     let ei = EI::new(0.0);
 
-    dbg!(ei.probe_acq(&gp, &[2.0, 1.0])); //CHECKED
+    dbg!(ei.probe(&gp, &[2.0, 1.0])); //CHECKED
     dbg!(gp.log_lik()); //CHECKED
+
+    let mut labcat = LABCAT::<
+        f64,
+        GP<f64, SqExpARD<f64>, LabcatMemory<f64>>,
+        EI<f64>,
+        ContinuousBounds<f64>,
+        LHS<f64>,
+    >::new(2, 0.5, ContinuousBounds::scaled_unit(2, 5.0));
+
+    labcat.tell(&[0.0, 0.0], &0.0);
+    labcat.tell(&[1.0, -1.0], &2.0);
+    labcat.tell(&[3.0, 3.0], &18.0);
+    dbg!(labcat.ask());
 }

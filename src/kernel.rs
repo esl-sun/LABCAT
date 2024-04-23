@@ -1,8 +1,73 @@
 use std::marker::PhantomData;
 
-use faer::{MatRef, Row};
+use anyhow::Result;
+use faer::{unzipped, zipped, Mat, MatRef, Row};
 
-use crate::{dtype, utils::MatRefUtils};
+use crate::{
+    dtype,
+    gp::GPSurrogate,
+    memory::ObservationIO,
+    utils::{DtypeUtils, MatRefUtils},
+    SurrogateIO,
+};
+
+pub trait KernelTheta<T>: BaseKernel<T>
+where
+    T: dtype,
+{
+    type Theta;
+
+    fn theta(&self) -> &Self::Theta;
+    fn theta_mut(&mut self) -> &mut Self::Theta;
+}
+
+pub trait Sigma_f<T>
+where
+    T: dtype,
+{
+    fn sigma_f(&self) -> &T;
+    fn sigma_f_mut(&mut self) -> &mut T;
+    fn jac<S: GPSurrogate<T>>(&self, gp: S) -> T
+    where
+        Self: Sigma_n<T>;
+}
+
+pub trait Sigma_n<T>
+where
+    T: dtype,
+{
+    fn sigma_n(&self) -> &T;
+    fn sigma_n_mut(&mut self) -> &mut T;
+    fn jac<S: GPSurrogate<T>>(&self, gp: S) -> T;
+}
+
+pub struct ThetaLABCAT {}
+
+impl<T: dtype> Sigma_f<T> for ThetaLABCAT {
+    fn sigma_f(&self) -> &T {
+        todo!()
+    }
+
+    fn sigma_f_mut(&mut self) -> &mut T {
+        todo!()
+    }
+
+    fn jac<S: GPSurrogate<T>>(&self, gp: S) -> T
+    where
+        Self: Sigma_n<T>,
+    {
+        // let inner = &self.alpha.dot(&self.alpha.t()) - &self.Kinv;
+        let inner =
+            zipped!(gp.alpha() * gp.alpha().transpose(), gp.K_inv()).map(|unzipped!(a, k)| *a - *k);
+
+        zipped!(gp.K())
+            .map_with_index(|i, j, unzipped!(k)| {
+                T::two() * if i == j { *k - *self.sigma_n() } else { *k }
+            })
+            .product_trace(inner.as_ref())
+            * T::half()
+    }
+}
 
 pub trait BaseKernel<T>
 where
