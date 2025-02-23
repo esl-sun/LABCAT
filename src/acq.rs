@@ -66,6 +66,28 @@ impl<kern: Kernel> ExpectedImprovement for GP<kern> {
         //should be +
     }
 
+    // fn ei_jac(&self, x: ArrayView1<f_>) -> Array1<f_> {
+    //     //TODO: Change back to results?
+
+    //     let (mean, sigma) = self.predict_single(x).unwrap();
+    //     let z = (self.mem.y_min() - mean) / sigma;
+
+    //     let dkT = self.kernel.obs_jac(&self.mem.X, x);
+
+    //     let dalpha = self
+    //         .L
+    //         .solvec(&self.kernel.k_diag(self.mem.X.view(), x))
+    //         .unwrap();
+
+    //     let ds = dkT
+    //         .dot(&dalpha)
+    //         .mul(sigma.recip());
+
+    //     let dz = dkT.dot(&self.alpha).scaled_add_Array1(-1.0*z, &ds, Axis(1));
+
+    //     (ds.mul(z * self.n.cdf(z) + self.n.pdf(z)) - dz.mul(self.n.cdf(z))).remove_axis(Axis(1))
+    // }
+
     fn ei_vec(&self, x: &Vec<f64>) -> f_ {
         // let x = Array1::from_vec(x.to_owned()); //unnessesary clone
         // -1.0 * self.ei(x.view())
@@ -100,39 +122,65 @@ impl<kern: Kernel> ExpectedImprovement for GP<kern> {
         }
     }
 
+    // fn ei_barrier(&self, x: &Vec<f_>) -> f_ {
+    //     let ei = self.ei_vec(x);
+    //     unsafe {
+    //         let x = ArrayView1::from_shape_ptr((self.dim,), x.as_ptr());
+
+    //         match self.mem.in_memory(x) {
+    //             true => return f_::INFINITY,
+    //             false => assert!(true),
+    //         };
+
+    //         match !self.bounds.inside(self.mem.x_test(x).view()) {
+    //             true => return f_::INFINITY,
+    //             false => ei,
+    //         }
+    //     }
+    // }
+
     // L-BFGS-B
     fn optimize_ei(&self, x: ArrayView1<f_>) -> Result<(f_, Array1<f_>)> {
-        // let startinner = Instant::now();
+        // // let startinner = Instant::now();
 
-        let mut x = x.to_vec();
+        // let mut x = x.to_vec();
 
-        let f = |x: &Vec<f64>| self.ei_vec(x);
-        let g = |x: &Vec<f64>| self.ei_jac_vec(x);
+        // let f = |x: &Vec<f64>| self.ei_vec(x);
+        // let g = |x: &Vec<f64>| self.ei_jac_vec(x);
 
-        let mut min = Lbfgsb::new(&mut x, &f, &g);
+        // let mut min = Lbfgsb::new(&mut x, &f, &g);
 
-        // set bounds
-        for d in 0..self.dim {
-            min.set_lower_bound(d, -self.beta);
-            min.set_upper_bound(d, self.beta);
-        }
+        // // set bounds
+        // for d in 0..self.dim {
+        //     min.set_lower_bound(d, -self.beta);
+        //     min.set_upper_bound(d, self.beta);
+        // }
 
-        //solver options TODO: parametrize?
-        min.set_verbosity(-1);
-        min.set_termination_tolerance(1e3);
-        if let None = min.minimize() {
-            bail!("EI minimization failed!")
-        }
-        let x_final = Array1::from_vec(x);
+        // //solver options TODO: parametrize?
+        // min.set_verbosity(-1);
+        // min.set_termination_tolerance(1e3);
+        // if let None = min.minimize() {
+        //     bail!("EI minimization failed!")
+        // }
+        // let x_final = Array1::from_vec(x);
+
+        // let final_ei = self.ei(x_final.view());
+
+        // if final_ei.is_nan() {
+        //     bail!("EI minimization failed!")
+        // }
+
+        // // println!("(EI) sing. opt Elapsed time: {:.6?}", startinner.elapsed());
+        // Ok((final_ei, x_final))
+
+        /////////////////////////////
+        
+        let x_final = x.to_owned();
 
         let final_ei = self.ei(x_final.view());
 
-        if final_ei.is_nan() {
-            bail!("EI minimization failed!")
-        }
-
-        // println!("(EI) sing. opt Elapsed time: {:.6?}", startinner.elapsed());
         Ok((final_ei, x_final))
+
     }
 
     // COBYLA
@@ -190,20 +238,24 @@ impl<kern: Kernel> ExpectedImprovement for GP<kern> {
 
         //////////////////////////////////
 
-        let params = JoeKuoD6::minimal();
-        let seq = Sobol::<f_>::new(self.dim, &params);
-        let sob: Vec<f_> = seq
-            .take(n - 1)
-            .flatten()
-            .map(|val| val / self.beta)
-            .collect(); // sobol seq accross [-beta, beta]^d
-        let mut X = Array2::from_shape_vec((self.dim, n - 1), sob).unwrap();
+        // let params = JoeKuoD6::minimal();
+        // let seq = Sobol::<f_>::new(self.dim, &params);
+        // let sob: Vec<f_> = seq
+        //     .take(n - 1)
+        //     .flatten()
+        //     .map(|val| val / self.beta)
+        //     .collect(); // sobol seq accross [-beta, beta]^d
+        // let mut X = Array2::from_shape_vec((self.dim, n - 1), sob).unwrap();
 
-        X.append(
-            Axis(1),
-            self.mem.X.column(self.mem.min_index()).clone().into_col(),
-        )
-        .expect("append should never fail");
+        // X.append(
+        //     Axis(1),
+        //     self.mem.X.column(self.mem.min_index()).clone().into_col(),
+        // )
+        // .expect("append should never fail");
+
+        //////////////////////////
+        
+        let X = Array2::random((self.dim, n), Uniform::new(-self.beta, self.beta));
 
         //////////////////////////
 
@@ -270,6 +322,7 @@ impl<kern: Kernel> ExpectedImprovement for GP<kern> {
 
         let mut res = vec![]; //working
         res.extend(X.columns().into_iter().map(|col| self.optimize_ei(col)));
+
         // res.extend(X.columns().into_iter().map(|col| optimize_ei_cloned(self.force_clone(), col) ));
 
         // println!("(EI) opt Elapsed time: {:.6?}", start.elapsed());
@@ -368,3 +421,34 @@ impl<kern: Kernel> ExpectedImprovement for GP<kern> {
         bail!("EI point not found!")
     }
 }
+
+// fn optimize_ei_cloned<kern: Kernel>(gp: GP<kern>, x: ArrayView1<f_>) -> Result<(f_, Array1<f_>)>
+// where
+//     GP<kern>: ExpectedImprovement,
+// {
+//     // let startinner = Instant::now();
+
+//     let mut x = x.to_vec();
+
+//     let f = |x: &Vec<f_>| gp.ei_vec(x);
+//     let g = |x: &Vec<f_>| gp.ei_jac_vec(x);
+
+//     let mut min = Lbfgsb::new(&mut x, &f, &g);
+
+//     // set bounds
+//     for d in 0..gp.dim {
+//         min.set_lower_bound(d, -gp.beta);
+//         min.set_upper_bound(d, gp.beta);
+//     }
+
+//     //solver options TODO: parametrize?
+//     min.set_verbosity(-1);
+//     min.set_termination_tolerance(1e3);
+//     if let None = min.minimize() {
+//         bail!("EI minimization failed!")
+//     }
+//     let x_final = Array1::from_vec(x);
+
+//     // println!("(EI) sing. opt Elapsed time: {:.6?}", startinner.elapsed());
+//     Ok((gp.ei(x_final.view()), x_final))
+// }
