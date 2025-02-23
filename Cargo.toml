@@ -11,7 +11,6 @@ rand = "0.8.5"
 ndarray = "0.15.6"
 ndarray-linalg = "0.16.0"
 ndarray-rand = "0.14.0"
-oxidized_l_bfgs_b_c = { path = "oxidized_L_BFGS_B_C" }
 statrs = "0.16.0"
 egobox-doe = "0.11.0"
 sobol = "1.0.2"
