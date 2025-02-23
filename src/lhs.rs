@@ -22,9 +22,7 @@ where
     T: dtype,
 {
     fn default() -> Self {
-        Self {
-            doe: Mat::default(),
-        }
+        Self { doe: Mat::new() }
     }
 }
 

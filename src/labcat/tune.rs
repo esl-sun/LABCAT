@@ -1,63 +1,72 @@
 use std::iter::once;
 
 use anyhow::Result;
-use faer::{unzipped, zipped, Col};
-use ord_subset::OrdSubset;
+use faer::{unzip, zip, Col};
 
 use crate::{
-    bounds::Bounds,
-    doe::DoE,
     dtype,
-    ei::AcqFunction,
     gp::GPSurrogate,
     kernel::{BayesianKernel, ARD},
-    tune::{SurrogateTune, Tune},
+    memory::ObservationVariance,
+    tune::SurrogateTuning,
     utils::{DtypeUtils, MatRefUtils},
-    Kernel, Memory, Refit, SurrogateIO,
+    SurrogateIO,
 };
 
-use super::{memory::LabcatMemory, LABCAT};
-
-pub struct LABCAT_GPTune {
-    // prior_sigma: T, // GIVING ISSUES
+#[derive(Debug, Clone)]
+pub struct LABCAT_GPTune<T>
+where
+    T: dtype,
+{
+    prior_sigma: T, // GIVING ISSUES
 }
 
-impl LABCAT_GPTune {
-    fn prior_sigma<T: dtype>() -> Option<T> {
-        T::from_f64(0.1)
+impl<T: dtype> Default for LABCAT_GPTune<T> {
+    fn default() -> Self {
+        Self {
+            prior_sigma: T::half() * T::half() * T::half(), //TODO: REWRTIE 0.1
+        }
+    }
+}
+
+impl<T> LABCAT_GPTune<T>
+where
+    T: dtype,
+{
+    fn prior_sigma(&self) -> &T {
+        &self.prior_sigma
     }
 
-    fn log_lik_prior<T, S>(gp: &S) -> Option<T>
+    fn log_lik_prior<S>(&self, gp: &S) -> Option<T>
     where
-        T: dtype,
         S: SurrogateIO<T> + GPSurrogate<T, KernType: ARD<T> + BayesianKernel<T>>,
     {
         Some(
             gp.log_lik()?
                 + T::half().neg()
-                    * Self::prior_sigma::<T>()?.powi(2).recip()
+                    * self.prior_sigma().powi(2).recip()
                     * gp.kernel()
                         .l()
                         .iter()
                         .fold(T::zero(), |acc, l| acc + l.ln() * l.ln()),
         )
     }
-    fn log_lik_jac<T, S>(gp: &S) -> Option<Col<T>>
+
+    fn log_lik_jac<S>(&self, gp: &S) -> Option<Col<T>>
     where
-        T: dtype,
         S: SurrogateIO<T> + GPSurrogate<T, KernType: ARD<T> + BayesianKernel<T>>,
     {
         let inner =
-            zipped!(gp.alpha() * gp.alpha().transpose(), gp.K_inv()).map(|unzipped!(a, k)| *a - *k);
+            zip!(gp.alpha() * gp.alpha().transpose(), gp.K_inv()).map(|unzip!(a, k)| *a - *k);
 
         // let _sigma_f = gp.kernel().sigma_f_gp_jac(gp).product_trace(inner.as_ref()) * T::half();
 
         // let _l = gp.kernel().l_gp_jac(gp);
-        
+
         let jac = once(gp.kernel().sigma_f_gp_jac(gp))
             .chain(gp.kernel().l_gp_jac(gp))
             .map(|jac| T::half() * jac.product_trace(inner.as_ref()));
-        
+
         // let l = zipped!(gp.K())
         // .map_with_index(|i, j, unzipped!(k)| {  });
 
@@ -65,14 +74,21 @@ impl LABCAT_GPTune {
     }
 }
 
-impl<T, S> Tune<T, S> for LABCAT_GPTune
+impl<T, S> SurrogateTuning<T, S> for LABCAT_GPTune<T>
 where
     T: dtype,
-    S: SurrogateIO<T> + GPSurrogate<T, KernType: ARD<T> + BayesianKernel<T>>,
+    S: SurrogateIO<T>
+        + GPSurrogate<T, KernType: ARD<T> + BayesianKernel<T>, MemType: ObservationVariance<T>>,
 {
-    fn tune(sur: &mut S) -> Result<()> {
-        Self::log_lik_prior(sur);
-        todo!()
+    fn tune(&self, sur: &mut S) -> Result<()> {
+        // self.log_lik_prior(&sur);
+        // self.log_lik_jac(sur);
+
+        *sur.kernel_mut().sigma_f_mut() = sur.memory().Y_std(T::zero());
+
+        sur.refit()?;
+
+        Ok(())
     }
 }
 

@@ -18,7 +18,10 @@ where
     fn ub(&self) -> &[T];
     fn lb(&self) -> &[T];
 
-    fn lb_ub(&self) -> impl DoubleEndedIterator<Item = (&T, &T)> {
+    fn lb_ub<'a>(&'a self) -> impl DoubleEndedIterator<Item = (&'a T, &'a T)>
+    where
+        T: 'a,
+    {
         self.lb().iter().zip(self.ub().iter())
     }
 

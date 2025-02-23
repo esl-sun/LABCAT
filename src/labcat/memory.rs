@@ -1,14 +1,16 @@
-use faer::{unzipped, zipped, Col, Mat, MatMut, MatRef, Row};
+use faer::{unzip, zip, Col, Mat, MatMut, MatRef, Row};
 use ord_subset::OrdSubset;
 
 use crate::{
+    bounds::Bounds,
     dtype,
     memory::{
         BaseMemory, ObservationDiscard, ObservationIO, ObservationInputRecenter,
         ObservationInputRescale, ObservationInputRotate, ObservationMaxMin, ObservationMean,
         ObservationOutputRecenter, ObservationOutputRescale, ObservationTransform,
+        ObservationVariance,
     },
-    utils::MatMutUtils,
+    utils::{MatMutUtils, MatRefUtils, ColRefUtils},
 };
 
 #[derive(Clone, Debug)]
@@ -24,6 +26,24 @@ where
     X_offset: Col<T>,
     y_offset: T,
     y_scale: T,
+}
+
+impl<T> LabcatMemory<T>
+where
+    T: dtype,
+{
+    pub fn tr_discard_with_retain(&mut self, tr: &impl Bounds<T>, n_retain: usize) {
+        let idx_discard = self
+            .X()
+            .cols()
+            .enumerate()
+            .filter(|(_, col)| !tr.inside(col.as_slice()))
+            .map(|(i, _)| i)
+            .take(self.n().saturating_sub(n_retain))
+            .collect();
+
+        self.discard_mult(idx_discard);
+    }
 }
 
 impl<T> ObservationIO<T> for LabcatMemory<T>
@@ -73,9 +93,9 @@ where
     }
 
     fn append(&mut self, x: &[T], y: &T) {
-        let x = &self.R_inv * &self.S_inv * (faer::col::from_slice::<T>(x) - &self.X_offset);
+        let x = &self.R_inv * &self.S_inv * (faer::ColRef::from_slice(x) - &self.X_offset);
         let y = (*y - self.y_offset) / self.y_scale;
-        self.base_mem.append(x.as_slice(), &y)
+        self.base_mem.append(x.as_ref().as_slice(), &y)
     }
 
     fn append_mult(&mut self, X: MatRef<T>, Y: &[T]) {
@@ -102,18 +122,21 @@ impl<T: dtype> ObservationMean<T> for LabcatMemory<T> {}
 
 impl<T: dtype + OrdSubset> ObservationMaxMin<T> for LabcatMemory<T> {}
 
+impl<T: dtype> ObservationVariance<T> for LabcatMemory<T> {}
+
 impl<T: dtype> ObservationTransform<T> for LabcatMemory<T> {
     fn x_prime(&self) -> impl Fn(&[T]) -> &[T] {
         // faer_core::col::from_slice(slice)
         // |x| faer_core::col::from_slice(x).as_slice() //TODO: FIX
+        todo!();
         |x| x
     }
 
     fn X_prime(&self) -> Mat<T> {
         let mut X_prime = self.R.as_ref() * self.S.as_ref() * self.base_mem.X().as_ref();
         X_prime.as_mut().cols_mut().for_each(|col| {
-            zipped!(col, self.X_offset.as_ref())
-                .for_each(|unzipped!(mut col, off)| col.write(col.read() + off.read()))
+            zip!(col, self.X_offset.as_ref())
+                .for_each(|unzip!(mut col, off)| *col = *col + *off)
         });
 
         X_prime
@@ -143,10 +166,10 @@ impl<T: dtype> ObservationTransform<T> for LabcatMemory<T> {
 
 impl<T: dtype> ObservationInputRecenter<T> for LabcatMemory<T> {
     fn recenter_X_with(&mut self, cen: &[T]) {
-        let cen = faer::col::from_slice::<T>(cen);
+        let cen = faer::ColRef::from_slice(cen);
 
         self.base_mem.X.as_mut().cols_mut().for_each(|col| {
-            zipped!(col, cen).for_each(|unzipped!(mut col, cen)| col.write(col.read() - cen.read()))
+            zip!(col, cen).for_each(|unzip!(mut col, cen)| *col = *col - *cen )
         });
 
         self.X_offset += self.R.as_ref() * self.S.as_ref() * cen;
@@ -160,21 +183,21 @@ impl<T: dtype> ObservationInputRescale<T> for LabcatMemory<T> {
             panic!("Dimensions of new rescaling slice and memory do not match!");
         }
 
-        let l = faer::col::from_slice::<T>(l);
+        let l = faer::ColRef::from_slice(l);
 
         //TODO: Avoid ref to private member?
         self.base_mem.X.cols_mut().for_each(|col| {
-            zipped!(col, l).for_each(|unzipped!(mut col, l)| col.write(col.read() / l.read()));
+            zip!(col, l).for_each(|unzip!(mut col, l)| *col = (*col) / (*l));
         });
 
-        zipped!(
+        zip!(
             self.S.as_mut().diagonal_mut().column_vector_mut(),
             self.S_inv.as_mut().diagonal_mut().column_vector_mut(),
             l
         )
-        .for_each(|unzipped!(mut S, mut S_inv, l)| {
-            S.write(S.read() * l.read());
-            S_inv.write(S_inv.read() / l.read())
+        .for_each(|unzip!(mut S, mut S_inv, l)| {
+            *S = (*S) * (*l);
+            *S_inv = (*S_inv) / (*l)
         });
     }
 }
@@ -182,14 +205,14 @@ impl<T: dtype> ObservationInputRescale<T> for LabcatMemory<T> {
 impl<T: dtype> ObservationInputRotate<T> for LabcatMemory<T> {
     fn rotate_X(&mut self) {
         let mut W = Mat::<T>::identity(self.n(), self.n());
-        zipped!(
+        zip!(
             W.as_mut().diagonal_mut().column_vector_mut(),
-            faer::col::from_slice::<T>(self.Y())
+            faer::ColRef::from_slice(self.Y())
         )
-        .for_each(|unzipped!(mut W, y)| W.write(T::one() - y.read()));
+        .for_each(|unzip!(mut W, y)| *W = T::one() - *y);
 
         let svd = (self.S.as_ref() * self.X().as_ref() * W.as_ref()).svd();
-        let u = svd.u();
+        let u = svd.unwrap().U();
 
         self.R = self.R.as_ref() * u;
         self.R_inv = u.transpose() * self.R.as_ref();
@@ -201,7 +224,7 @@ impl<T: dtype> ObservationInputRotate<T> for LabcatMemory<T> {
 
 impl<T: dtype> ObservationOutputRecenter<T> for LabcatMemory<T> {
     fn recenter_Y_with(&mut self, cen: &T) {
-        zipped!(self.base_mem.Y.as_mut(),).for_each(|unzipped!(mut y)| y.write(y.read() - *cen));
+        zip!(self.base_mem.Y.as_mut()).for_each(|unzip!(mut y)| *y = *y - *cen);
 
         self.y_offset = self.y_offset + self.y_scale.mul(*cen);
     }
@@ -216,8 +239,7 @@ impl<T: dtype> ObservationOutputRescale<T> for LabcatMemory<T> {
             return;
         }
 
-        zipped!(self.base_mem.Y.as_mut(),)
-            .for_each(|unzipped!(mut y)| y.write(y.read() * l.recip()));
+        zip!(self.base_mem.Y.as_mut()).for_each(|unzip!(y)| *y = *y * l.recip());
 
         self.y_scale = self.y_scale.mul(*l);
     }

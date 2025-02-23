@@ -1,14 +1,24 @@
 #![allow(non_snake_case)]
 
-use faer::modules::core::AsMatRef;
-use faer::{unzipped, zipped, Mat, MatMut, MatRef, Row};
+use faer::mat::AsMatRef;
+use faer::{unzip, zip, Mat, MatMut, MatRef, Row};
 use ord_subset::{OrdSubset, OrdSubsetIterExt};
 
 use crate::utils::{Axis, RowRefUtils, Select};
 use crate::{
     dtype,
-    utils::{MatMutUtils, MatRefUtils, RowMutUtils},
+    utils::{MatMutUtils, MatRefUtils, ColRefUtils},
 };
+
+pub trait Memory<T>
+where
+    T: dtype,
+{
+    type MemType: ObservationIO<T>;
+
+    fn memory(&self) -> &Self::MemType;
+    fn memory_mut(&mut self) -> &mut Self::MemType;
+}
 
 pub trait ObservationIO<T>: Clone
 where
@@ -17,13 +27,19 @@ where
     fn new(d: usize) -> Self;
     fn dim(&self) -> usize;
     fn n(&self) -> usize;
-    fn i(&self, i: usize) -> (&[T], &T);
     fn X(&self) -> MatRef<T>;
     fn X_mut(&mut self) -> MatMut<T>;
     fn Y(&self) -> &[T];
     fn Y_mut(&mut self) -> &mut [T];
     fn append(&mut self, x: &[T], y: &T);
     fn append_mult(&mut self, X: MatRef<T>, Y: &[T]);
+
+    fn i(&self, i: usize) -> (&[T], &T) {
+        let ptr = self.X().as_mat_ref().ptr_at(0, i);
+        let x = unsafe { core::slice::from_raw_parts(ptr, self.n()) }; // Safety: i and n should always be in bounds, X stays in memory
+
+        (x, &self.Y()[i])
+    }
 }
 
 pub trait ObservationDiscard<T>: ObservationIO<T>
@@ -48,9 +64,7 @@ where
             .enumerate()
             .ord_subset_max_by_key(|&(_, x)| x)?;
 
-        let ptr = self.X().as_mat_ref().ptr_at(0, i);
-        let x_max = unsafe { core::slice::from_raw_parts(ptr, self.n()) }; // Safety: i and n should always be in bounds, X stays in memory
-
+        let x_max = self.X().col(i).as_slice();
         Some((i, x_max, y_max))
     }
 
@@ -63,8 +77,7 @@ where
             .enumerate()
             .ord_subset_min_by_key(|&(_, x)| x)?;
 
-        let ptr = self.X().as_mat_ref().ptr_at(0, i);
-        let x_min = unsafe { core::slice::from_raw_parts(ptr, self.dim()) }; // Safety: i and n should always be in bounds, X stays in memory
+        let x_min = self.X().col(i).as_slice();
 
         Some((i, x_min, y_min))
     }
@@ -182,6 +195,7 @@ where
     }
 }
 
+// TODO: Remove? Looks like it has been added natively to faer
 pub trait ObservationMean<T>: ObservationIO<T>
 where
     T: dtype,
@@ -334,11 +348,11 @@ where
             panic!("Dimensions of new rescaling slice and memory do not match!");
         }
 
-        let l = faer::col::from_slice::<T>(l);
+        let l = faer::ColRef::from_slice(l);
 
         //TODO: Avoid ref to private member?
         self.X_mut().cols_mut().for_each(|col| {
-            zipped!(col, l).for_each(|unzipped!(mut col, l)| col.write(col.read() / l.read()));
+            zip!(col, l).for_each(|unzip!(mut col, l)| *col = *col / *l);
         });
     }
 }
@@ -401,7 +415,7 @@ where
     fn rotate_X(&mut self);
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct BaseMemory<T>
 where
     T: dtype,
@@ -411,10 +425,10 @@ where
 }
 
 impl<T: dtype> BaseMemory<T> {
-    fn from(X: impl AsMatRef<T>, Y: &[T]) -> Self {
+    fn from(X: impl AsMatRef<T = T, Cols = usize, Rows = usize>, Y: &[T]) -> Self {
         Self {
             X: X.as_mat_ref().to_owned(),
-            Y: faer::row::from_slice::<T>(Y).to_owned(),
+            Y: faer::ColRef::from_slice(Y).transpose().to_owned(),
         }
     }
 }
@@ -425,8 +439,8 @@ where
 {
     fn default() -> Self {
         Self {
-            X: Mat::default(),
-            Y: Row::default(),
+            X: Mat::new(),
+            Y: Row::zeros(0),
         }
     }
 }
@@ -439,7 +453,7 @@ where
         let mut X = Mat::new();
         unsafe { X.set_dims(d, 0) }
 
-        Self { X, Y: Row::new() }
+        Self { X, Y: Row::zeros(0) }
     }
 
     fn dim(&self) -> usize {
@@ -448,13 +462,6 @@ where
 
     fn n(&self) -> usize {
         self.X.ncols()
-    }
-
-    fn i(&self, i: usize) -> (&[T], &T) {
-        let ptr = self.X().as_mat_ref().ptr_at(0, i);
-        let x = unsafe { core::slice::from_raw_parts(ptr, self.n()) }; // Safety: i and n should always be in bounds, X stays in memory
-
-        (x, &self.Y()[i])
     }
 
     fn X(&self) -> MatRef<T> {
@@ -470,7 +477,7 @@ where
     }
 
     fn Y_mut(&mut self) -> &mut [T] {
-        self.Y.as_mut_slice()
+        self.Y.as_slice_mut()
     }
 
     fn append(&mut self, x: &[T], y: &T) {
@@ -519,14 +526,19 @@ where
         self.X = self
             .X()
             .get_submatrix_with_idx(Select::Exclude, Axis::Col, vec![i]);
-        self.Y = faer::row::from_slice::<T>(self.Y()).get_subrow_with_idx(Select::Exclude, vec![i]);
+        // TODO: RowRef::from_slice in faer
+        self.Y = faer::ColRef::from_slice(self.Y())
+            .transpose()
+            .get_subrow_with_idx(Select::Exclude, vec![i]);
     }
 
     fn discard_mult(&mut self, idx: Vec<usize>) {
         self.X = self
             .X()
             .get_submatrix_with_idx(Select::Exclude, Axis::Col, idx.clone());
-        self.Y = faer::row::from_slice::<T>(self.Y()).get_subrow_with_idx(Select::Exclude, idx);
+        self.Y = faer::ColRef::from_slice(self.Y())
+            .transpose()
+            .get_subrow_with_idx(Select::Exclude, idx);
     }
 
     fn discard_all(&mut self) {

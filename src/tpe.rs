@@ -9,7 +9,7 @@ use ord_subset::OrdSubset;
 use crate::kde::KDE;
 use crate::kernel::BaseKernel;
 use crate::memory::{ObservationDiscard, ObservationIO, ObservationMaxMin};
-use crate::{dtype, Memory, Refit, RefitWith, SurrogateIO};
+use crate::{dtype, memory::Memory, Refit, RefitWith, SurrogateIO};
 
 pub trait TPESurrogate<T>
 where

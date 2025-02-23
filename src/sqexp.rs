@@ -1,6 +1,6 @@
 use std::{iter::Product, ops::Div};
 
-use faer::{unzipped, zipped, Mat};
+use faer::{unzip, zip, Mat};
 use ndarray::{Array2, ArrayView1};
 use num_traits::real::Real;
 
@@ -88,7 +88,7 @@ where
     }
 
     fn sigma_f_gp_jac<S: GPSurrogate<T, KernType = Self>>(&self, gp: &S) -> Mat<T> {
-        zipped!(gp.K()).map_with_index(|i, j, unzipped!(k)| {
+        zip!(gp.K()).map_with_index(|i, j, unzip!(k)| {
             T::two()
                 * if i == j {
                     *k - gp.kernel().sigma_n().powi(2)
@@ -187,7 +187,7 @@ where
 
     fn l_gp_jac<S: GPSurrogate<T, KernType = Self>>(&self, gp: &S) -> impl Iterator<Item = Mat<T>> {
         self.l().iter().enumerate().map(|(d, l)| {
-            zipped!(gp.K()).map_with_index(|i, j, unzipped!(k)| {
+            zip!(gp.K()).map_with_index(|i, j, unzip!(k)| {
                 *k * (gp.memory().i(i).0[d] - gp.memory().i(j).0[d]).powi(2) / l.powi(2)
             })
         })
@@ -215,7 +215,7 @@ where
     }
 
     fn sigma_f_gp_jac<S: GPSurrogate<T, KernType = Self>>(&self, gp: &S) -> Mat<T> {
-        zipped!(gp.K()).map_with_index(|i, j, unzipped!(k)| {
+        zip!(gp.K()).map_with_index(|i, j, unzip!(k)| {
             T::two()
                 * if i == j {
                     *k - gp.kernel().sigma_n().powi(2)

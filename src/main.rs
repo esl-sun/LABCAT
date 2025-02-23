@@ -2,17 +2,22 @@ use faer::{unzipped, zipped, Col, Mat, Row};
 use faer_ext::{IntoFaer, IntoNdarray};
 
 use faer::linalg::zip::Diag;
+use faer::prelude::SolverCore;
 
 use labcat::bounds::ContinuousBounds;
 use labcat::ei::AcqFunction;
 use labcat::gp::GPSurrogate;
 use labcat::kernel::{BaseKernel, BayesianKernel, KernelSum, ARD};
-use labcat::labcat::{LabcatMemory, LABCAT};
+use labcat::labcat::tune::LABCAT_GPTune;
+use labcat::labcat::{memory::LabcatMemory, LABCAT};
 use labcat::lhs::LHS;
 use labcat::memory::{BaseMemory, ObservationIO, ObservationTransform};
+use labcat::tune::NoTuning;
 use labcat::utils::{Axis, MatMutUtils, MatRefUtils, MatUtils, Select};
 use labcat::{ei::EI, gp::GP, kde::KDE, sqexp::SqExpARD};
-use labcat::{AskTell, BayesianSurrogateIO, Kernel, Memory, RefitWith, SurrogateIO};
+use labcat::{
+    kernel::Kernel, memory::Memory, AskTell, BayesianSurrogateIO, RefitWith, Surrogate, SurrogateIO,
+};
 
 fn main() {
     let kern = SqExpARD::<f32>::new(5);
@@ -127,11 +132,12 @@ fn main() {
 
     // smbo.ask();
 
-    let mut mem = LabcatMemory::<f64>::new(2);
+    let mut mem = LabcatMemory::<f32>::new(2);
     mem.append(&[0.0, 0.0], &0.0);
-    mem.append(&[1.0, -1.0], &2.0);
-    mem.append(&[3.0, 3.0], &18.0);
-
+    // mem.append(&[1.0, -1.0], &2.0);
+    // mem.append(&[3.0, 3.0], &18.0);
+    // mem.append(&[3.0, -3.0], &9.0);
+    // mem.append(&[-2.0, -2.0], &4.0);
     // mem.recenter_X(&[1.0, 2.0]);
     // mem.rescale_X(&[2.0, 4.0]);
     // mem.rotate_X();
@@ -149,35 +155,81 @@ fn main() {
     // kde.refit_from(&mem).unwrap();
     // dbg!(kde.probe(&[0.0, 0.0]));
 
-    let mut gp = GP::<f64, SqExpARD<_>, LabcatMemory<_>>::new(2);
+    // let m = faer::mat![
+    // [2500.000000000001_f64, 919.6986029286059, 0.3085245102166989],
+    // [919.6986029286059, 2500.000000000001, 0.11349982440621213],
+    // [0.3085245102166989, 0.11349982440621213, 2500.000000000001],
+    // ];
+
+    let m = faer::mat![
+        [4_f64, 12.0, -16.0],
+        [12.0, 37.0, -43.0],
+        [-16.0, -43.0, 98.0],
+    ];
+
+    let m = m.cholesky(faer::Side::Lower).unwrap();
+    dbg!(&m);
+
+    let m = m.inverse();
+    dbg!(&m);
+
+    ////////////////////////////
+    let mut gp = GP::<f32, SqExpARD<_>, LabcatMemory<_>>::new(2);
     gp.memory_mut().reset_transform();
-    gp.kernel_mut().update_l(&[2.0, 1.0]);
+    gp.kernel_mut().update_l(&[1.0, 1.0]);
     *gp.kernel_mut().sigma_f_mut() = 50.0;
     *gp.kernel_mut().sigma_n_mut() = 1e-6;
     gp.refit_from(&mem).unwrap();
-    dbg!(gp.memory().X());
-    dbg!(gp.kernel());
-    dbg!(gp.K());
-    dbg!(gp.alpha());
+    // dbg!(gp.memory().X());
+    // dbg!(gp.kernel());
+    // dbg!(gp.K());
+    // dbg!(gp.alpha());
 
-    dbg!(gp.probe(&[2.0, 1.0])); //CHECKED, TODO: WRITE TESTS
-    dbg!(gp.probe_variance(&[2.0, 1.0])); //CHECKED
+    // dbg!(gp.probe(&[2.0, 1.0])); //CHECKED, TODO: WRITE TESTS
+    // dbg!(gp.probe_variance(&[2.0, 1.0])); //CHECKED
 
-    let ei = EI::new(0.0);
+    // let ei = EI::new(0.0);
 
-    dbg!(ei.probe(&gp, &[2.0, 1.0])); //CHECKED
-    dbg!(gp.log_lik()); //CHECKED
+    // dbg!(ei.probe(&gp, &[2.0, 1.0])); //CHECKED
+    // dbg!(gp.log_lik()); //CHECKED
 
     let mut labcat = LABCAT::<
         f64,
         GP<f64, SqExpARD<f64>, LabcatMemory<f64>>,
+        LABCAT_GPTune<f64>,
         EI<f64>,
         ContinuousBounds<f64>,
         LHS<f64>,
-    >::new(2, 0.5, ContinuousBounds::scaled_unit(2, 5.0));
+    >::new(2, 1.0, ContinuousBounds::scaled_unit(2, 5.0));
 
-    labcat.tell(&[0.0, 0.0], &0.0);
-    labcat.tell(&[1.0, -1.0], &2.0);
-    labcat.tell(&[3.0, 3.0], &18.0);
-    dbg!(labcat.ask());
+    ////////////////////////////
+
+    dbg!(labcat.surrogate().kernel());
+
+    // dbg!(labcat.ask());
+    // labcat.tell(&[0.0, 0.0], &0.0);
+    // dbg!(labcat.ask());
+    // labcat.tell(&[1.0, -1.0], &2.0);
+    // // labcat.tell(&[3.0, 3.0], &18.0);
+    // dbg!(labcat.ask());
+    // dbg!(labcat.ask());
+
+    // let mut a = labcat::Auto::new(labcat, |x| x.iter().map(|x| x.powi(2)).sum());
+
+    let obj = |x: &Vec<f64>| x.iter().map(|x: &f64| x.powi(2)).sum();
+
+    for i in 0..500 {
+        dbg!(i);
+        let x = labcat.ask();
+        let y = (obj)(&x);
+        dbg!(&x);
+        dbg!(&y);
+        labcat.tell(&x, &y);
+    }
+
+    // dbg!(labcat.memory().Y());
+    dbg!(labcat::memory::ObservationMaxMin::min_obs(labcat.memory()));
+
+    // dbg!(labcat.surrogate().K());
+    // a.optimize();
 }

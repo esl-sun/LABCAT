@@ -3,8 +3,8 @@
 
 use anyhow::Result;
 use faer::linalg::zip::Diag;
-use faer::solvers::{Cholesky, SolverCore, SpSolver};
-use faer::{unzipped, zipped, Col, ColRef, Mat, MatRef};
+// use faer::solvers::{Cholesky, SolverCore, SpSolver};
+use faer::{unzip, zip, Col, ColRef, Mat, MatRef};
 
 // use ndarray::{Array1, Array2, OwnedRepr};
 // use ndarray_linalg::{CholeskyFactorized, FactorizeC, InverseC, Lapack, SolveC, UPLO};
@@ -14,10 +14,16 @@ use crate::kernel::{BaseKernel, BayesianKernel};
 use crate::memory::{ObservationIO, ObservationMean};
 // use crate::ndarray_utils::{Array1IntoFaerRowCol, Array2Utils, ArrayView2Utils, RowColIntoNdarray};
 use crate::utils::{MatMutUtils, MatRefUtils};
-use crate::{dtype, BayesianSurrogateIO, Kernel, Memory, Refit, RefitWith, SurrogateIO};
+use crate::{
+    dtype, kernel::Kernel, memory::Memory, BayesianSurrogateIO, Refit, RefitWith, SurrogateIO,
+};
 
 pub trait GPSurrogate<T>:
-    SurrogateIO<T> + BayesianSurrogateIO<T> + Kernel<T> + Memory<T, MemType: ObservationMean<T>>
+    SurrogateIO<T>
+    + BayesianSurrogateIO<T>
+    + Kernel<T>
+    + Memory<T, MemType: ObservationMean<T>>
+    + Refit<T>
 where
     T: dtype,
 {
@@ -30,10 +36,10 @@ where
 
         Some(
             (T::one() + T::one()).recip().neg() //-0.5
-            * zipped!(faer::col::from_slice::<T>(self.memory().Y()), self.alpha())
-                .map(|unzipped!(y, a)| (y.read() - y_mean) * a.read()).sum() // (y - y_mean).dot(alpha)
-            - zipped!(self.L().compute_l().diagonal().column_vector())
-                .map(|unzipped!(val)| val.ln()).sum(), // trace(ln(L)), precompute trace?
+            * zip!(faer::ColRef::from_slice(self.memory().Y()), self.alpha())
+                .map(|unzip!(y, a)| (y.read() - y_mean) * a.read()).sum() // (y - y_mean).dot(alpha)
+            - zip!(self.L().compute_l().diagonal().column_vector())
+                .map(|unzip!(val)| val.ln()).sum(), // trace(ln(L)), precompute trace?
         )
     }
 
@@ -45,7 +51,6 @@ where
     // fn chol_solve_inplace(&self, x: &mut Col<T>) -> Result<()>;
 }
 
-// #[derive(Clone, Debug)]
 pub struct GP<T, K, M>
 where
     T: dtype,
@@ -161,27 +166,26 @@ where
         self.K.resize_with(n, n, |_, _| T::zero());
 
         //Calc lower triangular of K
-        zipped!(&mut self.K).for_each_triangular_lower_with_index(
+        zip!(&mut self.K).for_each_triangular_lower_with_index(
             Diag::Include,
-            |i, j, unzipped!(mut v)| {
-                v.write(
-                    self.kernel
-                        .k(self.mem.X().col_as_slice(i), self.mem.X().col_as_slice(j)),
-                )
+            |i, j, unzip!(mut v)| {
+                *v = self
+                    .kernel
+                    .k(self.mem.X().col_as_slice(i), self.mem.X().col_as_slice(j))
             },
         );
 
         //Fill upper triangular to ensure symmetry
         self.K.fill_with_side(faer::Side::Lower);
-
+        // dbg!("HERE");
         self.L = self.K.cholesky(faer::Side::Lower)?;
-        self.Kinv = self.L.inverse();
+        self.Kinv = self.L.inverse(); // Causes stack to overflow
+                                      // dbg!("HERE");
 
         self.alpha.resize_with(n, |_| T::zero());
 
         let y_mean = self.mem.Y_mean().unwrap_or(T::zero());
-        zipped!(&mut self.alpha)
-            .for_each_with_index(|i, unzipped!(mut v)| *v = self.mem.Y()[i] - y_mean);
+        zip!(&mut self.alpha).for_each_with_index(|i, unzip!(mut v)| *v = self.mem.Y()[i] - y_mean);
         self.L.solve_in_place(&mut self.alpha);
 
         Ok(())

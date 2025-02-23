@@ -2,11 +2,17 @@ use std::marker::PhantomData;
 
 use faer::{Mat, MatRef, Row};
 
-use crate::{
-    dtype,
-    gp::GPSurrogate,
-    utils::MatRefUtils,
-};
+use crate::{dtype, gp::GPSurrogate, utils::MatRefUtils};
+
+pub trait Kernel<T>
+where
+    T: dtype,
+{
+    type KernType: BaseKernel<T>;
+
+    fn kernel(&self) -> &Self::KernType;
+    fn kernel_mut(&mut self) -> &mut Self::KernType;
+}
 
 pub trait BaseKernel<T>
 where

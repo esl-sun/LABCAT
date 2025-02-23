@@ -1,7 +1,11 @@
 use std::ops::IndexMut;
 
-use faer::modules::core::{AsColMut, AsColRef, AsMatMut, AsMatRef, AsRowMut, AsRowRef};
-use faer::{col, row, unzipped, zipped, Col, ColMut, ColRef, Mat, Row, RowMut, RowRef, Side};
+use faer::{
+    col::{AsColMut, AsColRef},
+    mat::{AsMatMut, AsMatRef},
+    row::{AsRowMut, AsRowRef},
+    unzip, zip, Col, ColMut, ColRef, Mat, Row, RowMut, RowRef, Side,
+};
 // use ndarray::{Array, Ix2};
 
 use crate::dtype;
@@ -61,19 +65,13 @@ impl<E: dtype> DtypeUtils<E> for E {}
 
 pub trait ColRefUtils<E>
 where
-    Self: AsColRef<E>,
+    Self: AsColRef + AsMatRef<T = E, Rows = usize>,
     E: dtype,
 {
     #[inline]
     #[track_caller]
     fn as_slice(&self) -> &[E] {
-        let nrows = self.as_col_ref().nrows();
-        let ptr = self.as_col_ref().as_ptr();
-        E::faer_map(
-            ptr,
-            #[inline(always)]
-            |ptr| unsafe { core::slice::from_raw_parts(ptr, nrows) },
-        )
+        self.as_col_ref().try_as_col_major().unwrap().as_slice()
     }
 
     #[inline]
@@ -98,7 +96,6 @@ where
         let mut col_red = Col::<E>::zeros(nrows);
 
         self.as_col_ref()
-            .as_slice()
             .iter()
             .enumerate()
             .filter(|(row_id, _)| match select {
@@ -114,43 +111,29 @@ where
     }
 }
 
-impl<E: dtype, M: AsColRef<E>> ColRefUtils<E> for M {}
-
-pub trait ColMutUtils<E>
-where
-    Self: AsColMut<E>,
-    E: dtype,
-{
-    #[inline]
-    #[track_caller]
-    fn as_mut_slice(&mut self) -> &mut [E] {
-        let nrows = self.as_col_mut().nrows();
-        let ptr = self.as_col_mut().as_ptr_mut();
-        E::faer_map(
-            ptr,
-            #[inline(always)]
-            |ptr| unsafe { core::slice::from_raw_parts_mut(ptr, nrows) },
-        )
-    }
-}
-
-impl<E: dtype, M: AsColMut<E>> ColMutUtils<E> for M {}
+impl<E: dtype, M: AsColRef + AsMatRef<T = E, Rows = usize>> ColRefUtils<E> for M {}
 
 pub trait RowRefUtils<E>
 where
-    Self: AsRowRef<E>,
+    Self: AsRowRef + AsMatRef<T = E, Cols = usize>,
     E: dtype,
 {
+    // #[inline]
+    // #[track_caller]
+    // fn as_slice(&self) -> &[E] {
+    //     let ncols = self.as_row_ref().ncols();
+    //     let ptr = self.as_row_ref().as_ptr();
+    //     E::faer_map(
+    //         ptr,
+    //         #[inline(always)]
+    //         |ptr| unsafe { core::slice::from_raw_parts(ptr, ncols) },
+    //     )
+    // }
+
     #[inline]
     #[track_caller]
     fn as_slice(&self) -> &[E] {
-        let ncols = self.as_row_ref().ncols();
-        let ptr = self.as_row_ref().as_ptr();
-        E::faer_map(
-            ptr,
-            #[inline(always)]
-            |ptr| unsafe { core::slice::from_raw_parts(ptr, ncols) },
-        )
+        self.as_row_ref().try_as_row_major().unwrap().as_slice()
     }
 
     #[inline]
@@ -161,7 +144,7 @@ where
 
         #[cfg(debug_assertions)]
         if let Some(max_id) = idx.last() {
-            if *max_id >= self.as_row_ref().nrows() {
+            if *max_id >= self.as_row_ref().ncols() {
                 panic!("Row index ({}) to {:?} out of bounds!", max_id, select,);
             }
         }
@@ -175,7 +158,6 @@ where
         let mut row_red = Row::<E>::zeros(ncols);
 
         self.as_row_ref()
-            .as_slice()
             .iter()
             .enumerate()
             .filter(|(col_id, _)| match select {
@@ -191,38 +173,18 @@ where
     }
 }
 
-impl<E: dtype, M: AsRowRef<E>> RowRefUtils<E> for M {}
-
-pub trait RowMutUtils<E>
-where
-    Self: AsRowMut<E>,
-    E: dtype,
-{
-    #[inline]
-    #[track_caller]
-    fn as_mut_slice(&mut self) -> &mut [E] {
-        let ncols = self.as_row_mut().ncols();
-        let ptr = self.as_row_mut().as_ptr_mut();
-        E::faer_map(
-            ptr,
-            #[inline(always)]
-            |ptr| unsafe { core::slice::from_raw_parts_mut(ptr, ncols) },
-        )
-    }
-}
-
-impl<E: dtype, M: AsRowMut<E>> RowMutUtils<E> for M {}
+impl<E: dtype, M: AsRowRef + AsMatRef<T = E, Cols = usize>> RowRefUtils<E> for M {}
 
 pub trait MatRefUtils<E>
 where
-    Self: AsMatRef<E>,
+    Self: AsMatRef<T = E, Cols = usize, Rows = usize>,
     E: dtype,
 {
-    fn to_owned_mat(&self) -> Mat<E> {
-        let mut mat = Mat::new();
-        mat.copy_from(self.as_mat_ref());
-        mat
-    }
+    // fn to_owned_mat(&self) -> Mat<E> {
+    //     let mut mat = Mat::new();
+    //     mat.copy_from(self.as_mat_ref());
+    //     mat
+    // }
 
     /// Returns a reference to a slice over the column at the given index.
     #[inline]
@@ -236,11 +198,14 @@ where
 
     #[inline]
     #[track_caller]
-    fn cols(&self) -> impl DoubleEndedIterator<Item = ColRef<'_, E>> + '_ {
+    fn cols<'a>(&'a self) -> impl DoubleEndedIterator<Item = ColRef<'a, E>> + 'a
+    where
+        E: 'a,
+    {
         let row_stride = self.as_mat_ref().row_stride();
 
         (0..self.as_mat_ref().ncols()).map(move |col_id| unsafe {
-            col::from_raw_parts(
+            ColRef::from_raw_parts(
                 self.as_mat_ref().ptr_inbounds_at(0, col_id),
                 self.as_mat_ref().nrows(),
                 row_stride,
@@ -250,11 +215,14 @@ where
 
     #[inline]
     #[track_caller]
-    fn rows(&self) -> impl DoubleEndedIterator<Item = RowRef<'_, E>> + '_ {
+    fn rows<'a>(&'a self) -> impl DoubleEndedIterator<Item = RowRef<'a, E>> + 'a
+    where
+        E: 'a,
+    {
         let col_stride = self.as_mat_ref().col_stride();
 
         (0..self.as_mat_ref().nrows()).map(move |row_id| unsafe {
-            row::from_raw_parts(
+            RowRef::from_raw_parts(
                 self.as_mat_ref().ptr_inbounds_at(row_id, 0),
                 self.as_mat_ref().ncols(),
                 col_stride,
@@ -264,7 +232,7 @@ where
 
     #[inline]
     #[track_caller]
-    fn product_trace(&self, rhs: impl AsMatRef<E>) -> E {
+    fn product_trace(&self, rhs: impl MatRefUtils<E>) -> E {
         self.cols()
             .zip(rhs.rows())
             .map(|(col, row)| row * col)
@@ -320,7 +288,7 @@ where
         })
         .enumerate()
         .for_each(|(new_col_id, (_, col))| {
-            zipped!(
+            zip!(
                 match axis {
                     Axis::Col => mat_red.as_mut(),
                     Axis::Row => mat_red.as_mut().transpose_mut(),
@@ -328,18 +296,18 @@ where
                 .col_mut(new_col_id),
                 col
             )
-            .for_each(|unzipped!(mut old, new)| old.write(new.read()));
+            .for_each(|unzip!(mut old, new)| *old = *new);
         });
 
         mat_red
     }
 }
 
-impl<E: dtype, M: AsMatRef<E>> MatRefUtils<E> for M {}
+impl<E: dtype, M: AsMatRef<T = E, Cols = usize, Rows = usize>> MatRefUtils<E> for M {}
 
 pub trait MatMutUtils<E>
 where
-    Self: AsMatMut<E>,
+    Self: AsMatMut<T = E, Cols = usize, Rows = usize>,
     E: dtype,
 {
     //TODO: change zip_apply_* to zipped! from faer crate
@@ -395,7 +363,7 @@ where
 
         (0..nrows)
             .flat_map(move |i| (0..ncols).map(move |j| (i, j)))
-            .for_each(|(i, j)| self.as_mat_mut().write(i, j, f(i, j)));
+            .for_each(|(i, j)| self.as_mat_mut()[(i, j)] = f(i, j));
     }
 
     #[inline]
@@ -414,11 +382,14 @@ where
 
     #[inline]
     #[track_caller]
-    fn cols_mut(&mut self) -> impl DoubleEndedIterator<Item = ColMut<'_, E>> + '_ {
+    fn cols_mut<'a>(&'a mut self) -> impl DoubleEndedIterator<Item = ColMut<'a, E>> + 'a
+    where
+        E: 'a,
+    {
         let row_stride = self.as_mat_mut().row_stride();
 
         (0..self.as_mat_mut().ncols()).map(move |col_id| unsafe {
-            col::from_raw_parts_mut(
+            ColMut::from_raw_parts_mut(
                 self.as_mat_mut().ptr_inbounds_at_mut(0, col_id),
                 self.as_mat_mut().nrows(),
                 row_stride,
@@ -428,11 +399,14 @@ where
 
     #[inline]
     #[track_caller]
-    fn rows_mut(&mut self) -> impl DoubleEndedIterator<Item = RowMut<'_, E>> + '_ {
+    fn rows_mut<'a>(&'a mut self) -> impl DoubleEndedIterator<Item = RowMut<'a, E>> + 'a
+    where
+        E: 'a,
+    {
         let col_stride = self.as_mat_mut().col_stride();
 
         (0..self.as_mat_mut().nrows()).map(move |row_id| unsafe {
-            row::from_raw_parts_mut(
+            RowMut::from_raw_parts_mut(
                 self.as_mat_mut().ptr_inbounds_at_mut(row_id, 0),
                 self.as_mat_mut().ncols(),
                 col_stride,
@@ -460,7 +434,7 @@ where
     }
 }
 
-impl<E: dtype, M: AsMatMut<E>> MatMutUtils<E> for M {}
+impl<E: dtype, M: AsMatMut<T = E, Cols = usize, Rows = usize>> MatMutUtils<E> for M {}
 
 pub trait MatUtils<E>
 where
