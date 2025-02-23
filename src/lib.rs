@@ -11,8 +11,8 @@ use std::time::{Duration, Instant};
 use acq::ExpectedImprovement;
 use hyp_opt::HyperparameterOptimizer;
 // use fallible_option::Fallible::{self, Fail, Success};
-use ndarray::prelude::*;
 use ndarray::Slice;
+use ndarray::prelude::*;
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
@@ -178,7 +178,7 @@ pub struct LABCAT<LABCATConfigState = Config> {
 #[cfg(not(feature = "python"))]
 impl LABCAT {
     pub fn new(bounds: Bounds<Ready>) -> LABCAT<Config> {
-        let gp = GP::new(bounds.bounds_arr().to_owned(), 0.5, 0.15);
+        let gp = GP::new(bounds.bounds_arr().to_owned(), 0.5, 0.1);
         let init_pts_fn = |d: usize| d + 1;
         let forget_fn = |d: usize| 10 * d;
         #[cfg(feature = "LHS")]
@@ -399,15 +399,12 @@ impl<S: LABCATReadyState> LABCAT<S> {
     }
 
     #[cfg(not(feature = "python"))]
-    fn _suggest(&mut self) -> (Array2<f_>, Array1<f_>) {
+    fn _suggest(&mut self) -> Array2<f_> {
         self.state_transition();
         match self.gp_state.clone() {
-            GPState::Init(init_pts) => {
-                let ei_dummy = Array1::from_elem((init_pts.ncols(),), f_::NEG_INFINITY); //neg infty so that init is done first before cmping ei from different trust regions
-                (init_pts, ei_dummy)
-            }
+            GPState::Init(init_pts) => init_pts,
             GPState::Nominal => match self.step_alogrithm() {
-                Ok(Tup) => Tup,
+                Ok(Arr) => Arr,
                 Err(err) => {
                     self.restart(err);
                     self._suggest()
@@ -417,31 +414,25 @@ impl<S: LABCATReadyState> LABCAT<S> {
     }
 
     #[cfg(not(feature = "python"))]
-    fn step_alogrithm(&mut self) -> Result<(Array2<f_>, Array1<f_>)> {
-        // let start = Instant::now();
-
+    fn step_alogrithm(&mut self) -> Result<Array2<f_>> {
         let min = self.gp.mem.X.column(self.gp.mem.min_index()).to_owned();
         self.gp.mem.recenter_X(min.view());
-        // println!("Rec. Elapsed time: {:.6?}", start.elapsed());
-        // let start = Instant::now();
-
-        // println!("For. Elapsed time: {:.6?}", start.elapsed());
-        // let start = Instant::now();
 
         self.gp.mem.rescale_y();
 
         #[cfg(feature = "PCA")]
         self.gp.mem.rotate_X()?;
-        // println!("Rot. Elapsed time: {:.6?}", start.elapsed());
-        // let start = Instant::now();
 
         self.gp.fit()?;
-        // println!("Fit Elapsed time: {:.6?}", start.elapsed());
-        // let start = Instant::now();
 
-        self.gp.optimize_thetas()?;
-        // println!("The. Elapsed time: {:.6?}", start.elapsed());
-        // let start = Instant::now();
+        // self.gp.optimize_thetas()?;
+        match self.gp.optimize_thetas() {
+            Ok(_) => assert!(true),
+            Err(_) => {
+                self.gp.kernel.whiten_l();
+                self.gp.fit()?;
+            }
+        };
 
         self.gp
             .mem
@@ -453,20 +444,9 @@ impl<S: LABCATReadyState> LABCAT<S> {
             .forget(&self.gp.search_dom, (self.forget_fn)(self.bounds.dim()));
 
         self.gp.fit()?;
-        // println!("Fit Elapsed time: {:.6?}", start.elapsed());
-        // let start = Instant::now();
-        let (ei, ei_pt) = self.gp.optimize_ei_par(20)?;
-        // println!("EI FOUND");
-        // println!("EI Elapsed time: {:.6?}", start.elapsed());
-        // println!("---------------------------");
+        let (_, ei_pt) = self.gp.optimize_ei(10 * self.bounds.dim())?;
         let scaled_ei_pt = self.gp.mem.x_test(ei_pt.view()).into_col();
-        let scaled_ei = Array1::from_elem(
-            (1,),
-            // self.gp.mem.y_test(self.gp.mem.y_min()) - self.gp.mem.y_test(-1.0 * ei),
-            self.gp.mem.y_test(-1.0 * ei), //sort of works
-                                           // self.gp.mem.y_scaling() * ei * -1.0
-        );
-        Ok((scaled_ei_pt, scaled_ei))
+        Ok(scaled_ei_pt)
     }
 
     fn _observe(&mut self, X: Array2<f_>, y: Array1<f_>) {
@@ -540,7 +520,7 @@ impl LABCAT<Manual> {
         self.gp.kernel.thetas()
     }
 
-    pub fn suggest(&mut self) -> (Array2<f_>, Array1<f_>) {
+    pub fn suggest(&mut self) -> Array2<f_> {
         self._suggest()
     }
 
@@ -568,8 +548,8 @@ impl LABCAT<Auto> {
         }
         loop {
             let suggest = self._suggest();
-            let samples = (self.target_fn.unwrap())(&suggest.0);
-            self._observe(suggest.0, samples);
+            let samples = (self.target_fn.unwrap())(&suggest);
+            self._observe(suggest, samples);
 
             if print {
                 if self.config.n_samples % self.config.auto_print.expect("Already checked option")

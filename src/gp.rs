@@ -131,11 +131,4 @@ where
 
         Ok((pred_mean, pred_var))
     }
-
-    // pub fn force_clone(&self) -> Self {
-
-    //     let L = CholeskyFactorized { factor: self.L.factor.clone(), uplo: self.L.uplo };
-
-    //     Self { dim: self.dim.clone(), bounds: self.bounds.clone(), beta: self.beta.clone(), search_dom: self.search_dom.clone(), kernel: self.kernel.clone(), prior_sigma: self.prior_sigma.clone(), mem: self.mem.clone(), K: self.K.clone(), Kinv: self.Kinv.clone(), L, alpha: self.alpha.clone(), n: self.n.clone() }
-    // }
 }

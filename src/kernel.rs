@@ -95,6 +95,7 @@ impl Kernel for SquaredExponential {
         if self.thetas.shape() != new_thetas.shape() {
             panic!("thetas shape mismatch!")
         }
+        // dbg!(&new_thetas);
         if self.thetas != new_thetas {
             self.thetas.assign(new_thetas);
             self.update_l_inv();
@@ -106,6 +107,7 @@ impl Kernel for SquaredExponential {
 
     fn whiten_l(&mut self) {
         self.thetas.iter_mut().skip(2).for_each(|l| *l = 1.0);
+        self.update_l_inv();
         self.jac_state = DerivState::Uncalculated;
         self.hess_state = DerivState::Uncalculated;
         self.state = KernelState::Unfitted;
@@ -138,7 +140,7 @@ impl Kernel for SquaredExponential {
         let exponent = -0.5 * (&dif.dot(&self.l_inv).dot(&dif));
 
         let val = self.sigma_f().powi(2) * exponent.exp()
-            + match { &x1.eq(&x2) } {
+            + match { x1.eq(&x2) } {
                 true => self.sigma_n().powi(2),
                 false => 0.0,
             };

@@ -1,6 +1,6 @@
 use ndarray::{
-    s, Array1, Array2, Array3, Array4, ArrayBase, ArrayView1, ArrayView2, Axis, DataMut, Dimension,
-    NewAxis,
+    Array1, Array2, Array3, Array4, ArrayBase, ArrayView1, ArrayView2, Axis, DataMut, Dimension,
+    NewAxis, s,
 };
 use ndarray_linalg::{Scalar, UPLO};
 

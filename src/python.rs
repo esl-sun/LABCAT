@@ -15,7 +15,7 @@ use crate::gp::GP;
 use crate::hyp_opt::HyperparameterOptimizer;
 use crate::kernel::Kernel;
 use crate::utils::Array1Utils;
-use crate::{f_, LABCATReadyState, Auto, Config, GPState, Manual, LABCAT};
+use crate::{Auto, Config, GPState, LABCAT, LABCATReadyState, Manual, f_};
 use crate::{LABCATConfig, OptimizationSummary};
 
 #[cfg(feature = "python")]
@@ -57,8 +57,10 @@ impl pyConfig {
             Some(f) => match f.call1(py, (d,)) {
                 Ok(ret) => match ret.extract::<usize>(py) {
                     Ok(val) => val,
-                    Err(_) => panic!("Python init points number function must return a value that can be parsed to usize!"),
-                }
+                    Err(_) => panic!(
+                        "Python init points number function must return a value that can be parsed to usize!"
+                    ),
+                },
                 Err(_) => panic!("Failed to call python initial points number function!"),
             },
             None => d + 1,
@@ -70,8 +72,10 @@ impl pyConfig {
             Some(f) => match f.call1(py, (d,)) {
                 Ok(ret) => match ret.extract::<usize>(py) {
                     Ok(val) => val,
-                    Err(_) => panic!("Python forget number function must return a value that can be parsed to usize!"),
-                }
+                    Err(_) => panic!(
+                        "Python forget number function must return a value that can be parsed to usize!"
+                    ),
+                },
                 Err(_) => panic!("Failed to call python forget number function!"),
             },
             None => d * 10,
@@ -214,9 +218,6 @@ impl LABCAT<Config> {
 #[cfg(feature = "python")]
 impl<S: LABCATReadyState> LABCAT<S> {
     fn restart<'py>(&mut self, _err: anyhow::Error, py: Python<'py>) {
-        // println!("{}", err);
-        println!("RESTARTING");
-
         let mut gp = GP::new(
             self.bounds.bounds_arr().to_owned(),
             self.config.beta.into(),
@@ -254,7 +255,7 @@ impl<S: LABCATReadyState> LABCAT<S> {
         }
     }
 
-    fn step_alogrithm<'py>(&mut self, py: Python<'py>) -> Result<Array2<f_>> {
+    fn step_alogrithm<'py>(&mut self, py: Python<'py>) -> Result<(Array2<f_>, Array1<f_>)> {
         let min = self.gp.mem.X.column(self.gp.mem.min_index()).to_owned();
         self.gp.mem.recenter_X(min.view());
 
@@ -265,21 +266,26 @@ impl<S: LABCATReadyState> LABCAT<S> {
 
         self.gp.fit()?;
 
-        self.gp.optimize_thetas()?;
+        match self.gp.optimize_thetas() {
+            Ok(_) => assert!(true),
+            Err(_) => {
+                self.gp.kernel.whiten_l();
+                self.gp.fit()?;
+            }
+        };
 
         self.gp
             .mem
             .rescale_X(self.gp.kernel.l(), Some(self.config.prior_sigma.into()));
-
         self.gp.kernel.whiten_l();
 
         let min_n = self.py_config.forget_fn(self.bounds.dim(), py);
         self.gp.mem.forget(&self.gp.search_dom, min_n);
 
         self.gp.fit()?;
-        let (_, ei_pt) = self.gp.optimize_ei_par(20)?; // TODO: Change from static val?
-
-        Ok(self.gp.mem.x_test(ei_pt.view()).into_col())
+        let (_, ei_pt) = self.gp.optimize_ei(10 * self.bounds.dim())?;
+        let scaled_ei_pt = self.gp.mem.x_test(ei_pt.view()).into_col();
+        Ok(scaled_ei_pt)
     }
 }
 

@@ -1,5 +1,5 @@
-use ndarray::{parallel::prelude::*, s, Array1, Array2, ArrayView1};
-use ndarray_linalg::{error::LinalgError, EigValsh, InverseC, UPLO};
+use ndarray::{Array1, Array2, ArrayView1, parallel::prelude::*, s};
+use ndarray_linalg::{EigValsh, InverseC, UPLO, error::LinalgError};
 
 use crate::{
     f_,
@@ -19,7 +19,14 @@ pub trait HyperparameterOptimizer {
 
     fn optimize_thetas(&mut self) -> Result<(), LinalgError>;
 
-    fn backtrack(&mut self, base_log_lik: f64, base_thetas: Array1<f_>, backtrack_base: f_, backtrack_n: i32, delta: Array1<f_>) -> Result<(), LinalgError>;
+    fn backtrack(
+        &mut self,
+        base_log_lik: f64,
+        base_thetas: Array1<f_>,
+        backtrack_base: f_,
+        backtrack_n: i32,
+        delta: Array1<f_>,
+    ) -> Result<(), LinalgError>;
 }
 
 impl<kern: Kernel> HyperparameterOptimizer for GP<kern> {
@@ -32,20 +39,12 @@ impl<kern: Kernel> HyperparameterOptimizer for GP<kern> {
         }
 
         -0.5 * (self.mem.y_m().dot(&self.alpha))[0] - self.L.factor.diag().map(|val| val.ln()).sum() //Precalc L trace?
-        //Prior over ln length scales
-        // -0.5 * self.prior_sigma.powi(2).recip() * self.kernel.ln_l().dot(&self.kernel.ln_l()) // UNCOMMENT IN WORKING VER
-        //Prior over sigma_f
-
     }
 
     fn log_lik_with_prior(&self, _base_thetas: ArrayView1<f_>) -> f_ {
-        // -0.5 * (self.mem.y_m().dot(&self.alpha))[0] - self.L.factor.diag().map(|val| val.ln()).sum() //Precalc L trace?
         self.log_lik()
         //Prior over ln length scales
         -0.5 * self.prior_sigma.powi(2).recip() * self.kernel.ln_l().dot(&self.kernel.ln_l())
-        //Prior over sigma_f
-        // -0.5 * self.prior_sigma.powi(2).recip() * (self.kernel.sigma_f().ln() - base_thetas[0]).powi(2)
-
     }
 
     //checked
@@ -116,92 +115,7 @@ impl<kern: Kernel> HyperparameterOptimizer for GP<kern> {
         // hess.fill_with_UPLO(UPLO::Upper)
     }
 
-
-    // WORKING
-    // fn optimize_thetas(&mut self) -> Result<(), LinalgError> {
-    //     let mut thetas = self.kernel.thetas().to_owned().ln();
-
-    //     // let new_sigma_f =
-    //     //     ((1.0 / self.mem.n() as f64) * (self.mem.y_m().dot(&self.alpha))[0]).sqrt();
-    //     // //Moore et. al.
-
-    //     let mut new_sigma_f = (self.mem.y_prime_std_dev()).ln();
-    //     if new_sigma_f.is_infinite() {
-    //         //if std_dev is zero
-    //         new_sigma_f = (0.01 as f_).ln();
-    //     }
-
-    //     thetas[0] = new_sigma_f;
-    //     self.kernel.update_thetas(&thetas.clone().exp());
-    //     self.fit()?;
-
-    //     let base_log_lik = self.log_lik();
-    //     let base_thetas = thetas;
-
-    //     let mut hess = self.log_lik_hess();
-    //     hess = hess.slice(s![1.., 1..,]).to_owned();
-
-    //     let mut grad = self.log_lik_jac();
-    //     grad = grad.slice(s![1..,]).to_owned();
-
-    //     let eigs = hess.eigvalsh(UPLO::Lower);
-
-    //     if eigs.is_ok()
-    //         && eigs.iter().all(|eig_res| {
-    //             eig_res
-    //                 .par_iter()
-    //                 .all(|eig| eig.is_normal() && eig.is_sign_positive())
-    //         })
-    //     {
-
-    //         if let Ok(hess_inv) = hess.invc() {
-    //             let delta = hess_inv.dot(&grad);
-            
-    //             self.backtrack(base_log_lik, base_thetas.clone(), 0.5, 5, delta)?;
-    //             if self.log_lik() > base_log_lik {
-    //                 // println!("Hess steps: {}", i + 1);
-    //                 return Ok(());
-    //             }
-    //         }
-            
-    //     }
-
-    //     self.backtrack(base_log_lik, base_thetas.clone(), 0.1, 5, grad)?;
-
-    //     if self.log_lik() > base_log_lik {
-    //         // println!("Grad steps: {}", i + 1);
-    //         return Ok(());
-    //     } else {
-    //         self.kernel.update_thetas(&base_thetas.exp());
-    //         self.fit()?;
-    //         return Ok(());
-    //     }
-    // }
-
-    // fn backtrack(&mut self, base_log_lik: f64, base_thetas: Array1<f_>, backtrack_base: f_, backtrack_n: i32, delta: Array1<f_>) -> Result<(), LinalgError> {
-    //     for i in 0..backtrack_n {
-    //         let mut thetas = base_thetas.clone();
-    //         thetas
-    //             .slice_mut(s![2..])
-    //             .iter_mut()
-    //             .zip(delta.iter())
-    //             .for_each(|(theta, delta)| *theta = backtrack_base.powi(i) as f_ * delta); //check sign
-
-    //         self.kernel.update_thetas(&thetas.to_owned().exp());
-    //         self.fit()?;
-    //         // println!("Hess");
-    //         if self.log_lik() > base_log_lik {
-    //             // println!("Hess steps: {}", i + 1);
-    //             return Ok(());
-    //         }
-    //     }
-
-    //     Ok(())
-    // }
-
     fn optimize_thetas(&mut self) -> Result<(), LinalgError> {
-    
-        
         let mut thetas = self.kernel.thetas().to_owned().ln();
 
         // let new_sigma_f =
@@ -210,7 +124,7 @@ impl<kern: Kernel> HyperparameterOptimizer for GP<kern> {
         // println!("princp {}", new_sigma_f);
         //Moore et. al.
 
-        let mut new_sigma_f = ((2.0*self.mem.y_prime_std_dev())).ln();
+        let mut new_sigma_f = (2.0 * self.mem.y_prime_std_dev()).ln();
         if new_sigma_f.is_infinite() {
             //if std_dev is zero
             new_sigma_f = (0.01 as f_).ln();
@@ -240,17 +154,15 @@ impl<kern: Kernel> HyperparameterOptimizer for GP<kern> {
                     .all(|eig| eig.is_normal() && eig.is_sign_positive())
             })
         {
-
             if let Ok(hess_inv) = hess.invc() {
                 let delta = hess_inv.dot(&grad);
-            
+
                 self.backtrack(base_log_lik, base_thetas.clone(), 0.5, 5, delta)?;
                 if self.log_lik_with_prior(base_thetas.view()) > base_log_lik {
                     // println!("Hess steps: {}", i + 1);
                     return Ok(());
                 }
             }
-            
         }
 
         self.backtrack(base_log_lik, base_thetas.clone(), 0.1, 5, grad)?;
@@ -265,7 +177,14 @@ impl<kern: Kernel> HyperparameterOptimizer for GP<kern> {
         }
     }
 
-    fn backtrack(&mut self, base_log_lik: f64, base_thetas: Array1<f_>, backtrack_base: f_, backtrack_n: i32, delta: Array1<f_>) -> Result<(), LinalgError> {
+    fn backtrack(
+        &mut self,
+        base_log_lik: f64,
+        base_thetas: Array1<f_>,
+        backtrack_base: f_,
+        backtrack_n: i32,
+        delta: Array1<f_>,
+    ) -> Result<(), LinalgError> {
         for i in 0..backtrack_n {
             let mut thetas = base_thetas.clone();
             thetas
@@ -285,96 +204,4 @@ impl<kern: Kernel> HyperparameterOptimizer for GP<kern> {
 
         Ok(())
     }
-
-
 }
-
-// OLD BEFORE BACKTRACK REFACTOR
-// fn optimize_thetas(&mut self) -> Result<(), LinalgError> {
-//     let mut thetas = self.kernel.thetas().to_owned().ln();
-
-//     // let new_sigma_f =
-//     //     ((1.0 / self.mem.n() as f64) * (self.mem.y_m().dot(&self.alpha))[0]).sqrt();
-//     // //Moore et. al.
-
-//     let mut new_sigma_f = (self.mem.y_prime_std_dev()).ln();
-//     if new_sigma_f.is_infinite() {
-//         //if std_dev is zero
-//         new_sigma_f = (0.01 as f_).ln();
-//     }
-
-//     thetas[0] = new_sigma_f;
-//     self.kernel.update_thetas(&thetas.clone().exp());
-//     self.fit()?;
-
-//     let base_log_lik = self.log_lik();
-//     let base_thetas = thetas;
-
-//     let mut hess = self.log_lik_hess();
-//     hess = hess.slice(s![1.., 1..,]).to_owned();
-
-//     let mut grad = self.log_lik_jac();
-//     grad = grad.slice(s![1..,]).to_owned();
-
-//     let eigs = hess.eigvalsh(UPLO::Lower);
-
-//     if eigs.is_ok()
-//         && eigs.iter().all(|eig_res| {
-//             eig_res
-//                 .par_iter()
-//                 .all(|eig| eig.is_normal() && eig.is_sign_positive())
-//         })
-//     {
-//         for i in 0..5 {
-//             // Second order step with backtracking
-//             let hess_inv = match hess.invc() {
-//                 Ok(inv) => inv,
-//                 Err(_) => break, //fall back to grad ascent
-//             };
-//             let delta = hess_inv.dot(&grad);
-//             let mut thetas = base_thetas.clone();
-//             thetas
-//                 .slice_mut(s![2..])
-//                 .iter_mut()
-//                 .zip(delta.iter())
-//                 .for_each(|(theta, delta)| *theta = 0.5_f64.powi(i) as f_ * delta); //check sign
-
-//             self.kernel.update_thetas(&thetas.to_owned().exp());
-//             self.fit()?;
-//             // println!("Hess");
-//             if self.log_lik() > base_log_lik {
-//                 // println!("Hess steps: {}", i + 1);
-//                 return Ok(());
-//             }
-//         }
-//     }
-
-//     for i in 0..5 {
-//         // Gradient ascent with backtracking
-//         let mut thetas = base_thetas.clone();
-//         thetas
-//             .slice_mut(s![2..])
-//             .iter_mut()
-//             .zip(grad.iter())
-//             .for_each(|(theta, grad)| *theta += 0.1_f64.powi(i) as f_ * grad);
-
-//         self.kernel.update_thetas(&thetas.to_owned().exp());
-//         match self.fit() {
-//             Ok(_) => assert!(true),
-//             Err(_) => continue,
-//         };
-//         if self.log_lik() > base_log_lik {
-//             // println!("Grad steps: {}", i + 1);
-//             return Ok(());
-//         }
-//     }
-
-//     // dbg!(&thetas);
-
-//     self.kernel.update_thetas(&base_thetas.exp());
-//     self.fit()?;
-
-//     // dbg!(self.log_lik());
-
-//     Ok(())
-// }

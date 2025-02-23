@@ -1,9 +1,9 @@
-use algpa_lib::{bounds::Bounds, f_, LABCAT};
+use labcat::{LABCAT, bounds::Bounds, f_};
 // use gplib::{ALGPA, GP, ALGPAtrait};
-use ndarray::{Array1, Array2,};
+use ndarray::{Array1, Array2};
+
 #[allow(dead_code, non_snake_case)]
 fn true_fn(X: &Array2<f_>) -> Array1<f_> {
-
     let mut y = Array1::zeros((X.ncols(),));
     y.iter_mut()
         .zip(X.columns())
@@ -24,7 +24,6 @@ pub fn rosenbrock_vec(x: Vec<f64>) -> f64 {
 
 #[allow(dead_code, non_snake_case)]
 fn main() {
-    
     // let b = Bounds::new()
     //     .add_categorical("c1", vec!["cat1", "cat2"])
     //     .add_boolean("c2")
@@ -35,7 +34,6 @@ fn main() {
     //         gplib::bounds_transforms::BoundTransform::Logistic,
     //     )
     //     .build();
-
 
     let bounds = Bounds::new_continuous(3, 5.0, -5.0);
     let alg = LABCAT::new(bounds)
