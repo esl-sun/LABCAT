@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use enum_dispatch::enum_dispatch;
 use ndarray::{Array1, AssignElem, arr1};
-use rand::{Rng, thread_rng};
+use rand::{Rng, rng};
 
 use crate::{
     bounds_transforms::{BoundTransform, BoundTransformTrait, BoundTransformType},
@@ -287,7 +287,7 @@ impl BoundTrait for Categorical {
                         self.label()
                     ));
 
-                rand::thread_rng().r#gen::<f_>() + index as f_ // TODO: randomize in interval instead of fixed index?
+                rand::rng().random::<f_>() + index as f_ // TODO: randomize in interval instead of fixed index?
             }
             _ => panic!(
                 "Bound representation {} cannot be parsed to categorical bound type!",
@@ -348,8 +348,8 @@ impl BoundTrait for Boolean {
                     )
                 };
                 match bool {
-                    true => rand::thread_rng().r#gen(), //TODO: randomize in interval instead of fixed vals?
-                    false => rand::thread_rng().r#gen::<f_>() + 1.0,
+                    true => rand::rng().random(), //TODO: randomize in interval instead of fixed vals?
+                    false => rand::rng().random::<f_>() + 1.0,
                 }
             }
             _ => panic!(

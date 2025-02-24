@@ -46,7 +46,7 @@ impl Bounds {
 
         let bounds: Vec<BoundType> = (0..d)
             .into_iter()
-            .map(|i| Continuous::new(&(i + 1).to_string(), upper, lower).enum_var())
+            .map(|i| Continuous::new(&format!("d{}", i+1), upper, lower).enum_var())
             .collect();
 
         let bounds_arr = ArrayBounds::new(bounds.clone());

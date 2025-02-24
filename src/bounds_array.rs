@@ -73,7 +73,7 @@ impl ArrayBounds {
 
     pub fn random_sample(&self, n: usize) -> Array2<f_> {
         Array2::from_shape_fn((self.bounds_arr.nrows(), n), |(i, _)| {
-            rand::thread_rng().gen_range(self.bounds_arr()[(i, 0)]..self.bounds_arr()[(i, 1)])
+            rand::rng().random_range(self.bounds_arr()[(i, 0)]..self.bounds_arr()[(i, 1)])
         })
     }
 
