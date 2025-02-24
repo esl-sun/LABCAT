@@ -1,0 +1,14 @@
+[build-system]
+requires = ["maturin>=1.8,<1.9"]
+build-backend = "maturin"
+
+[project]
+name = "labcat"
+dynamic = ["version"]
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+

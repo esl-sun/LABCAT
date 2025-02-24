@@ -1,0 +1,21 @@
+[package]
+name = "labcat-python"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "labcat"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "^0.15.0", features = ["extension-module", "abi3-py37"] }
+labcat = {path = "..", features = ["python"]}
+numpy = "^0.15.0"
+# pyo3-log = "^0.12.0"
+ndarray = { version = "0.15.6", features = ["rayon", "matrixmultiply-threading", "blas"] }
+
+[target.'cfg(windows)'.dependencies]
+ndarray-linalg = { version = "0.16", features = ["intel-mkl-static"] }
+
+[target.'cfg(unix)'.dependencies]
+ndarray-linalg = { version = "0.16", features = ["openblas-static"] }
