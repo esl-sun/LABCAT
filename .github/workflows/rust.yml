@@ -35,11 +35,19 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{matrix.python-version}}
-    - name: Install Python dependencies 
+    - name: Set up Python environment 
       run: |
         python -m pip install --upgrade pip
-        pip install maturin
+        python3 -m venv venv
     - name: Build Python package
+      shell: bash
       run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          source venv/bin/activate
+        elif [ "$RUNNER_OS" == "Windows" ]; then
+          source venv/Scripts/activate
+        fi
+        echo "VIRTUAL ENV:" $VIRTUAL_ENV
+        pip install maturin
         cd ./python
-        maturin build --release
+        maturin develop --release
