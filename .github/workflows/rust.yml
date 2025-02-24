@@ -28,7 +28,7 @@ jobs:
         rustup component add clippy
         cargo clippy -- -D warnings
     - name: Cargo Build
-      run: cargo build --release --verbose
+      run: cargo build --release
     - name: Run example
       run: cargo run --example gp --release
     - name: Set up Python ${{matrix.python-version}}
@@ -43,6 +43,8 @@ jobs:
       shell: bash
       run: |
         if [ "$RUNNER_OS" == "Linux" ]; then
+          source venv/bin/activate
+        elif [ "$RUNNER_OS" == "macOS" ]; then
           source venv/bin/activate
         elif [ "$RUNNER_OS" == "Windows" ]; then
           source venv/Scripts/activate
