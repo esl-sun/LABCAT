@@ -15,7 +15,7 @@ jobs:
     runs-on: ${{matrix.os}}
     strategy: 
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ['3.11', '3.12', '3.13']
         # python-version: ['3.13']
 
@@ -23,14 +23,14 @@ jobs:
     - uses: actions/checkout@v4
     - name: Update Rust toolchain
       run: rustup update
-    - name: Cargo Build
-      run: cargo build --verbose
     - name: Lint
       run: |
         rustup component add clippy
         cargo clippy -- -D warnings
-    # - name: Run tests
-    #   run: cargo test --verbose
+    - name: Cargo Build
+      run: cargo build --release --verbose
+    - name: Run example
+      run: cargo run --example gp --release
     - name: Set up Python ${{matrix.python-version}}
       uses: actions/setup-python@v5
       with:
