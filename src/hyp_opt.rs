@@ -32,7 +32,7 @@ pub trait HyperparameterOptimizer {
 impl<kern: Kernel> HyperparameterOptimizer for GP<kern> {
     fn log_lik(&self) -> f_ {
         match self.kernel.state() {
-            KernelState::Fitted => assert!(true),
+            KernelState::Fitted => (),
             KernelState::Unfitted => {
                 panic!("Cannot calc log_lik with unfitted GP Model!") // switch to anyhow error?
             }
@@ -50,7 +50,7 @@ impl<kern: Kernel> HyperparameterOptimizer for GP<kern> {
     //checked
     fn log_lik_jac(&self) -> Array1<f_> {
         match self.kernel.state() {
-            KernelState::Fitted => assert!(true),
+            KernelState::Fitted => (),
             KernelState::Unfitted => {
                 panic!("Cannot calc log_lik grad with unfitted GP Model!") // switch to anyhow error?
             }
@@ -75,7 +75,7 @@ impl<kern: Kernel> HyperparameterOptimizer for GP<kern> {
     // Calcs -H so that invc can be used, checked
     fn log_lik_hess(&self) -> Array2<f_> {
         match self.kernel.state() {
-            KernelState::Fitted => assert!(true),
+            KernelState::Fitted => (),
             KernelState::Unfitted => {
                 panic!("Cannot calc log_lik hess with unfitted GP Model!") // switch to anyhow error?
             }
@@ -169,11 +169,11 @@ impl<kern: Kernel> HyperparameterOptimizer for GP<kern> {
 
         if self.log_lik_with_prior(base_thetas.view()) > base_log_lik {
             // println!("Grad steps: {}", i + 1);
-            return Ok(());
+            Ok(())
         } else {
             self.kernel.update_thetas(&base_thetas.exp());
             self.fit()?;
-            return Ok(());
+            Ok(())
         }
     }
 

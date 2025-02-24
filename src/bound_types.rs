@@ -138,11 +138,8 @@ impl Discrete {
         lower: i_,
         transform: BoundTransform,
     ) -> Self {
-        match transform {
-            BoundTransform::Logistic => {
-                panic!("Logistic transformation not supported for discrete bound!")
-            }
-            _ => assert!(true),
+        if let BoundTransform::Logistic = transform {
+            panic!("Logistic transformation not supported for discrete bound!")
         };
 
         Discrete {
@@ -224,7 +221,7 @@ pub struct Categorical {
 
 impl Categorical {
     pub fn new(label: &str, categories: Vec<&str>) -> Self {
-        if categories.len() == 0 {
+        if categories.is_empty() {
             panic!("Number of categories in categorical bound must be non-zero!");
         }
 
@@ -281,11 +278,13 @@ impl BoundTrait for Categorical {
                     .iter()
                     .enumerate()
                     .find(|cat| cat.1 == key_cat)
-                    .expect(&format!(
-                        "Category {} could not be found in bound {} during parsing!",
-                        key_cat,
-                        self.label()
-                    ));
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "Category {} could not be found in bound {} during parsing!",
+                            key_cat,
+                            self.label()
+                        )
+                    });
 
                 rand::rng().random::<f_>() + index as f_ // TODO: randomize in interval instead of fixed index?
             }
@@ -329,7 +328,7 @@ impl BoundTrait for Boolean {
 
     fn repr(&self, x: &f_) -> Option<BoundRepr> {
         if self.inside(x) {
-            let b = if x <= &1.0 { true } else { false };
+            let b = x <= &1.0;
 
             Some(BoundRepr::Boolean((self.label.clone(), b)))
         } else {

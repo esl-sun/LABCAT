@@ -101,6 +101,12 @@ pub struct LABCATConfig {
     auto_print: Option<usize>,
 }
 
+impl Default for LABCATConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LABCATConfig {
     pub fn new() -> LABCATConfig {
         LABCATConfig {
@@ -156,6 +162,7 @@ impl Display for OptimizationSummary {
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub struct LABCAT<LABCATConfigState = Config> {
     gp: GP<SquaredExponential>,
     gp_state: GPState,
@@ -224,7 +231,7 @@ impl LABCAT<Config> {
     }
 
     pub fn target_tol(mut self, tol: f_) -> Self {
-        self.config.target_tol = tol.into();
+        self.config.target_tol = tol;
         self
     }
 
@@ -251,8 +258,8 @@ impl LABCAT<Config> {
     pub fn build(self) -> LABCAT<Manual> {
         let gp = GP::new(
             self.bounds.bounds_arr().to_owned(),
-            self.config.beta.into(),
-            self.config.prior_sigma.into(),
+            self.config.beta,
+            self.config.prior_sigma,
         );
 
         #[cfg(feature = "LHS")]
@@ -362,7 +369,7 @@ impl<S: LABCATReadyState> LABCAT<S> {
                 }
             }
 
-            GPState::Nominal => assert!(true),
+            GPState::Nominal => (),
         }
     }
 
@@ -373,8 +380,8 @@ impl<S: LABCATReadyState> LABCAT<S> {
 
         let mut gp = GP::new(
             self.bounds.bounds_arr().to_owned(),
-            self.config.beta.into(),
-            self.config.prior_sigma.into(),
+            self.config.beta,
+            self.config.prior_sigma,
         );
 
         #[cfg(feature = "LHS")]
@@ -427,7 +434,7 @@ impl<S: LABCATReadyState> LABCAT<S> {
 
         // self.gp.optimize_thetas()?;
         match self.gp.optimize_thetas() {
-            Ok(_) => assert!(true),
+            Ok(_) => (),
             Err(_) => {
                 self.gp.kernel.whiten_l();
                 self.gp.fit()?;
@@ -436,7 +443,7 @@ impl<S: LABCATReadyState> LABCAT<S> {
 
         self.gp
             .mem
-            .rescale_X(self.gp.kernel.l(), Some(self.config.prior_sigma.into()));
+            .rescale_X(self.gp.kernel.l(), Some(self.config.prior_sigma));
         self.gp.kernel.whiten_l();
 
         self.gp
@@ -467,7 +474,7 @@ impl<S: LABCATReadyState> LABCAT<S> {
     }
 
     pub fn _check_converged(&self) -> Option<TermCond> {
-        if self.gp.mem.y_scaling() < self.config.target_tol.into() {
+        if self.gp.mem.y_scaling() < self.config.target_tol {
             if self.config.target_tol == f_::EPSILON {
                 return Some(TermCond::MachineEpsilonReached);
             } else {
@@ -476,7 +483,7 @@ impl<S: LABCATReadyState> LABCAT<S> {
         };
 
         if let Some(val) = self.config.target_val {
-            if self.gp.mem.y()[self.gp.mem.min_index()] <= val.into() {
+            if self.gp.mem.y()[self.gp.mem.min_index()] <= val {
                 return Some(TermCond::TargetValReached);
             }
         }
@@ -551,16 +558,15 @@ impl LABCAT<Auto> {
             let samples = (self.target_fn.unwrap())(&suggest);
             self._observe(suggest, samples);
 
-            if print {
-                if self.config.n_samples % self.config.auto_print.expect("Already checked option")
+            if print
+                && self.config.n_samples % self.config.auto_print.expect("Already checked option")
                     == 0
-                {
-                    println!("{}", self.iter_summary());
-                }
+            {
+                println!("{}", self.iter_summary());
             }
 
             if let Some(term) = self._check_converged() {
-                if self.config.restarts == true {
+                if self.config.restarts {
                     match term {
                         TermCond::MaxItersReached => {
                             println!("{}", self.bottom_border());

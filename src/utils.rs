@@ -130,13 +130,14 @@ impl Array1Utils for Array1<f_> {
     }
 }
 
+#[allow(clippy::wrong_self_convention)]
 pub trait ArrayView1Utils {
-    fn into_col(&self) -> ArrayView2<f_>;
+    fn into_col_view(&self) -> ArrayView2<f_>;
 }
 
 impl ArrayView1Utils for ArrayView1<'_, f_> {
     #[inline(always)]
-    fn into_col(&self) -> ArrayView2<f_> {
+    fn into_col_view(&self) -> ArrayView2<f_> {
         self.slice(s![.., NewAxis])
     }
 }
@@ -222,7 +223,7 @@ impl Array2Utils for Array2<f_> {
     fn product_trace(&self, rhs: &Array2<f_>) -> f_ {
         self.columns()
             .into_iter()
-            .zip(rhs.rows().into_iter())
+            .zip(rhs.rows())
             .map(|(col, row)| col.dot(&row))
             .sum()
     }
@@ -295,24 +296,24 @@ impl Array2Utils for Array2<f_> {
         indices.dedup(); //remove duplicates
 
         match axis {
-            Axis(i) if i == 0 => indices.retain(|i| *i < self.nrows()),
-            Axis(i) if i == 1 => indices.retain(|i| *i < self.ncols()),
+            Axis(0) => indices.retain(|i| *i < self.nrows()),
+            Axis(1) => indices.retain(|i| *i < self.ncols()),
             _ => panic!("Invalid Axis index!"),
         };
 
         let sh = match axis {
-            Axis(i) if i == 0 => (self.nrows() - indices.len(), self.ncols()),
-            Axis(i) if i == 1 => (self.nrows(), self.ncols() - indices.len()),
+            Axis(0) => (self.nrows() - indices.len(), self.ncols()),
+            Axis(1) => (self.nrows(), self.ncols() - indices.len()),
             _ => panic!("Invalid Axis index!"),
         };
 
         let red_vec: Vec<f_> = match axis {
-            Axis(i) if i == 0 => self
+            Axis(0) => self
                 .indexed_iter()
                 .filter(|((i, _), _)| !indices.contains(i))
                 .map(|((_, _), val)| *val)
                 .collect(),
-            Axis(i) if i == 1 => self
+            Axis(1) => self
                 .indexed_iter()
                 .filter(|((_, j), _)| !indices.contains(j))
                 .map(|((_, _), val)| *val)
@@ -342,7 +343,7 @@ impl ArrayView2Utils for ArrayView2<'_, f_> {
     fn product_trace(&self, rhs: &ArrayView2<f_>) -> f_ {
         self.columns()
             .into_iter()
-            .zip(rhs.rows().into_iter())
+            .zip(rhs.rows())
             .map(|(col, row)| col.dot(&row))
             .sum()
     }

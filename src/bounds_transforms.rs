@@ -33,10 +33,10 @@ impl BoundTransform {
 
     pub fn to_string(&self) -> &str {
         match self {
-            BoundTransform::Linear => &"linear",
-            BoundTransform::Log => &"log",
-            BoundTransform::Logistic => &"logistic",
-            BoundTransform::BiLog => &"bilog",
+            BoundTransform::Linear => "linear",
+            BoundTransform::Log => "log",
+            BoundTransform::Logistic => "logistic",
+            BoundTransform::BiLog => "bilog",
         }
     }
 }

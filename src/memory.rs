@@ -154,7 +154,7 @@ impl Memory {
 
         let max = match self.y_prime_max() {
             // Avoid rescaling if vals are all equal, i.e. max = min = 0.0
-            x if x == 0.0 => 1.0,
+            0.0 => 1.0,
             x => x,
         };
 

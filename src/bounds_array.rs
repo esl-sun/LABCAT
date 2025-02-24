@@ -31,8 +31,8 @@ impl ArrayBounds {
 
     pub fn new_continuous(d: usize, upper: f_, lower: f_) -> ArrayBounds {
         let bounds_arr = Array2::from_shape_fn((d, 2), |(_, j)| match j {
-            j if j == 0 => lower,
-            j if j == 1 => upper,
+            0 => lower,
+            1 => upper,
             _ => panic!("Should never trigger"),
         });
 

@@ -137,10 +137,10 @@ impl Kernel for SquaredExponential {
 
         let dif = &x1 - &x2;
 
-        let exponent = -0.5 * (&dif.dot(&self.l_inv).dot(&dif));
+        let exponent = -0.5 * (dif.dot(&self.l_inv).dot(&dif));
 
         let val = self.sigma_f().powi(2) * exponent.exp()
-            + match { x1.eq(&x2) } {
+            + match x1.eq(&x2) {
                 true => self.sigma_n().powi(2),
                 false => 0.0,
             };

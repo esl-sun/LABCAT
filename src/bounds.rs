@@ -26,6 +26,12 @@ pub struct Bounds<BoundsConfig = Config> {
     config_state: PhantomData<BoundsConfig>,
 }
 
+impl Default for Bounds {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Bounds {
     pub fn new() -> Bounds<Config> {
         let bounds: Vec<BoundType> = vec![];
@@ -45,8 +51,7 @@ impl Bounds {
         }
 
         let bounds: Vec<BoundType> = (0..d)
-            .into_iter()
-            .map(|i| Continuous::new(&format!("d{}", i+1), upper, lower).enum_var())
+            .map(|i| Continuous::new(&format!("d{}", i + 1), upper, lower).enum_var())
             .collect();
 
         let bounds_arr = ArrayBounds::new(bounds.clone());
@@ -61,12 +66,7 @@ impl Bounds {
 
 impl Bounds<Config> {
     fn push_bound(&mut self, bound: BoundType) {
-        if self
-            .bounds
-            .iter()
-            .find(|&b| b.label() == bound.label())
-            .is_some()
-        {
+        if self.bounds.iter().any(|b| b.label() == bound.label()) {
             panic!(
                 "Cannot have bounds with duplicate \"{}\" labels!",
                 bound.label()
@@ -78,7 +78,7 @@ impl Bounds<Config> {
     }
 
     pub fn add_categorical(mut self, label: &str, categories: Vec<&str>) -> Bounds<Config> {
-        if categories.len() == 0 {
+        if categories.is_empty() {
             panic!("Amount of categories in bound must be non-zero!")
         }
 
@@ -187,10 +187,7 @@ impl Bounds<Ready> {
             .map(|(bound, x)| bound.repr(x))
             .collect();
 
-        match reprs {
-            Some(reprs) => Some(BoundReprs { reprs }),
-            None => None,
-        }
+        reprs.map(|reprs| BoundReprs { reprs })
     }
 
     pub fn parse(&self, x: BoundReprs) -> Array1<f_> {
@@ -201,10 +198,9 @@ impl Bounds<Ready> {
             let x_match = x
                 .iter() // try to find matching boundrepr in x
                 .find(|&bound_repr| bound_repr.label() == bound.label())
-                .expect(&format!(
-                    "Bound {} could not be found during parsing!",
-                    bound.label()
-                ));
+                .unwrap_or_else(|| {
+                    panic!("Bound {} could not be found during parsing!", bound.label())
+                });
             res_vec.push(bound.parse(x_match)); // parse matching bound_repr and push into res
         }
 
@@ -243,9 +239,9 @@ impl Display for BoundReprs {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{{ ")?;
 
-        self.reprs.iter().fold(Ok(()), |result, repr| {
-            result.and_then(|_| write!(f, "{}, ", repr))
-        })?;
+        self.reprs
+            .iter()
+            .try_fold((), |_, repr| write!(f, "{}, ", repr))?;
 
         write!(f, "}}")?;
 

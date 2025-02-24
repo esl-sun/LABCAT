@@ -59,7 +59,7 @@ where
     pub fn fit(&mut self) -> Result<(), LinalgError> {
         match (self.kernel.state(), self.mem.state()) {
             (KernelState::Fitted, MemoryState::Fitted) => return Ok(()), // model has already been fitted, early return
-            (_, _) => assert!(true),
+            (_, _) => (),
         }
 
         self.K = Array2::zeros((self.mem.n(), self.mem.n()))
@@ -87,7 +87,7 @@ where
 
     pub fn predict_single(&self, x: ArrayView1<f_>) -> Result<(f_, f_)> {
         match (self.kernel.state(), self.mem.state()) {
-            (KernelState::Fitted, MemoryState::Fitted) => assert!(true),
+            (KernelState::Fitted, MemoryState::Fitted) => (),
             (_, _) => anyhow::bail!("Cannot predict with unfitted GP Model!"), // model has not been fitted, early return
         }
 
@@ -109,7 +109,7 @@ where
 
     pub fn predict(&self, X: Array2<f_>) -> Result<(Array2<f_>, Array2<f_>)> {
         match (self.kernel.state(), self.mem.state()) {
-            (KernelState::Fitted, MemoryState::Fitted) => assert!(true),
+            (KernelState::Fitted, MemoryState::Fitted) => (),
             (_, _) => anyhow::bail!("Cannot predict with unfitted GP Model!"), // model has not been fitted, early return
         }
 
