@@ -152,11 +152,11 @@ impl LABCAT {
 
 #[cfg(feature = "python")]
 impl LABCAT<Config> {
-    pub fn beta(&mut self, beta: f32) {
+    pub fn beta(&mut self, beta: f_) {
         self.config.beta = beta;
     }
 
-    pub fn prior_sigma(&mut self, sigma: f32) {
+    pub fn prior_sigma(&mut self, sigma: f_) {
         self.config.prior_sigma = sigma;
     }
 
@@ -168,11 +168,11 @@ impl LABCAT<Config> {
         self.py_config.py_callable_forget_fn = Some(f);
     }
 
-    pub fn target_tol(&mut self, tol: f32) {
+    pub fn target_tol(&mut self, tol: f_) {
         self.config.target_tol = tol.into();
     }
 
-    pub fn target_val(&mut self, val: f32) {
+    pub fn target_val(&mut self, val: f_) {
         self.config.target_val = Some(val);
     }
 
@@ -255,7 +255,7 @@ impl<S: LABCATReadyState> LABCAT<S> {
         }
     }
 
-    fn step_alogrithm<'py>(&mut self, py: Python<'py>) -> Result<(Array2<f_>, Array1<f_>)> {
+    fn step_alogrithm<'py>(&mut self, py: Python<'py>) -> Result<Array2<f_>> {
         let min = self.gp.mem.X.column(self.gp.mem.min_index()).to_owned();
         self.gp.mem.recenter_X(min.view());
 
@@ -320,15 +320,7 @@ impl LABCAT<Manual> {
         self.gp.kernel.thetas()
     }
 
-    pub fn get_search_dom_corners(&self) -> Array2<f_> {
-        self.gp.mem.corners_2D()
-    }
-
-    pub fn next_pcs(&self) -> Array2<f_> {
-        self.gp.mem.next_pcs()
-    }
-
-    pub fn gp_predict(&self, mut x_prime: Array2<f_>) -> (Array2<f_>, Array2<f_>) {
+    pub fn predict(&self, mut x_prime: Array2<f_>) -> (Array2<f_>, Array2<f_>) {
         let y_prime = match self.gp.predict(x_prime.clone()) {
             Ok(res) => res.0,
             Err(_) => Array2::from_elem((x_prime.ncols(), 1), 0.0),

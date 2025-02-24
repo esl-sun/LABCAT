@@ -21,7 +21,7 @@ pub trait HyperparameterOptimizer {
 
     fn backtrack(
         &mut self,
-        base_log_lik: f64,
+        base_log_lik: f_,
         base_thetas: Array1<f_>,
         backtrack_base: f_,
         backtrack_n: i32,
@@ -179,7 +179,7 @@ impl<kern: Kernel> HyperparameterOptimizer for GP<kern> {
 
     fn backtrack(
         &mut self,
-        base_log_lik: f64,
+        base_log_lik: f_,
         base_thetas: Array1<f_>,
         backtrack_base: f_,
         backtrack_n: i32,

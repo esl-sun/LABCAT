@@ -90,11 +90,11 @@ pub struct OptimizationSummary {
 
 #[derive(Debug, Clone)]
 pub struct LABCATConfig {
-    beta: f32, // TODO: back to f_?
-    prior_sigma: f32,
+    beta: f_, // TODO: back to f_?
+    prior_sigma: f_,
     restarts: bool,
     target_tol: f_,
-    target_val: Option<f32>,
+    target_val: Option<f_>,
     n_samples: usize,
     max_samples: Option<usize>,
     max_time: Option<(Duration, Instant)>,
@@ -203,12 +203,12 @@ impl LABCAT {
 
 #[cfg(not(feature = "python"))]
 impl LABCAT<Config> {
-    pub fn beta(mut self, beta: f32) -> Self {
+    pub fn beta(mut self, beta: f_) -> Self {
         self.config.beta = beta;
         self
     }
 
-    pub fn prior_sigma(mut self, sigma: f32) -> Self {
+    pub fn prior_sigma(mut self, sigma: f_) -> Self {
         self.config.prior_sigma = sigma;
         self
     }
@@ -223,12 +223,12 @@ impl LABCAT<Config> {
         self
     }
 
-    pub fn target_tol(mut self, tol: f32) -> Self {
+    pub fn target_tol(mut self, tol: f_) -> Self {
         self.config.target_tol = tol.into();
         self
     }
 
-    pub fn target_val(mut self, val: f32) -> Self {
+    pub fn target_val(mut self, val: f_) -> Self {
         self.config.target_val = Some(val);
         self
     }

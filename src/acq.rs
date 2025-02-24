@@ -29,8 +29,8 @@ impl<kern: Kernel> ExpectedImprovement for GP<kern> {
         let (mean, sigma) = self.predict_single(x).unwrap();
 
         let z = (self.mem.y_prime_min() - mean) / sigma;
-
-        sigma * (z * self.n.cdf(z) + self.n.pdf(z))
+        
+        sigma * (z * self.n.cdf(z.into()) as f_ + self.n.pdf(z.into()) as f_)
     }
 
     fn optimize_ei(&self, n: usize) -> Result<(f_, Array1<f_>)> {
