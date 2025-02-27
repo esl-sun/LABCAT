@@ -30,7 +30,7 @@ jobs:
     - name: Cargo Build
       run: cargo build --release
     - name: Run example
-      run: cargo run --example gp --release
+      run: cargo run --example demo --release
     - name: Set up Python ${{matrix.python-version}}
       uses: actions/setup-python@v5
       with:
@@ -39,7 +39,12 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         python3 -m venv venv
-    - name: Build Python package
+    - name: Lint Python
+      run: |
+        rustup component add clippy
+        cd ./python
+        cargo clippy -- -D warnings
+    - name: Build Python package and run example
       shell: bash
       run: |
         if [ "$RUNNER_OS" == "Linux" ]; then
@@ -53,3 +58,4 @@ jobs:
         pip install maturin
         cd ./python
         maturin develop --release
+        python ./examples/demo.py
