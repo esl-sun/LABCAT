@@ -42,20 +42,16 @@ impl PyBoundsConfig {
 
             let bound_type = val
                 .get_item("type")
-                .expect(&format!(
-                    "Type of bound not specified for bound \"{}\"!",
-                    &key
-                ))
+                .unwrap_or_else(|| panic!("Type of bound not specified for bound \"{}\"!",
+                    &key))
                 .extract::<String>()
-                .expect(&format!(
-                    "Type specification for bound \"{}\" could not be parsed to string!",
-                    &key
-                ));
+                .unwrap_or_else(|_| panic!("Type specification for bound \"{}\" could not be parsed to string!",
+                    &key));
 
             match bound_type.as_str() {
-                "int" => self.parse_discrete(&key, &val),
-                "real" => self.parse_continuous(&key, &val),
-                "cat" => self.parse_categorical(&key, &val),
+                "int" => self.parse_discrete(&key, val),
+                "real" => self.parse_continuous(&key, val),
+                "cat" => self.parse_categorical(&key, val),
                 "bool" => self.add_boolean(&key),
                 &_ => panic!("Bound type \"{}\" is not supported!", bound_type),
             }
@@ -75,14 +71,14 @@ impl PyBoundsConfig {
         self.bounds = self
             .bounds
             .clone()
-            .add_discrete(label, upper.into(), lower.into())
+            .add_discrete(label, upper, lower)
     }
 
     fn add_continuous(&mut self, label: &str, upper: f64, lower: f64) {
         self.bounds = self
             .bounds
             .clone()
-            .add_continuous(label, upper.into(), lower.into())
+            .add_continuous(label, upper, lower)
     }
 
     fn add_discrete_with_transform(
@@ -92,15 +88,13 @@ impl PyBoundsConfig {
         lower: i64,
         transform: &str,
     ) {
-        let trans = BoundTransform::parse_transform(transform).expect(&format!(
-            "Bound transform \"{}\" not recognized!",
-            transform
-        ));
+        let trans = BoundTransform::parse_transform(transform).unwrap_or_else(|| panic!("Bound transform \"{}\" not recognized!",
+            transform));
 
         self.bounds = self.bounds.clone().add_discrete_with_transform(
             label,
-            upper.into(),
-            lower.into(),
+            upper,
+            lower,
             trans,
         )
     }
@@ -112,15 +106,13 @@ impl PyBoundsConfig {
         lower: f64,
         transform: &str,
     ) {
-        let trans = BoundTransform::parse_transform(transform).expect(&format!(
-            "Bound transform \"{}\" not recognized!",
-            transform
-        ));
+        let trans = BoundTransform::parse_transform(transform).unwrap_or_else(|| panic!("Bound transform \"{}\" not recognized!",
+            transform));
 
         self.bounds = self.bounds.clone().add_continuous_with_transform(
             label,
-            upper.into(),
-            lower.into(),
+            upper,
+            lower,
             trans,
         )
     }
@@ -130,24 +122,18 @@ impl PyBoundsConfig {
 
         let transform = match space {
             Some(val) => {
-                let trans_str = val.extract().expect(&format!(
-                    "Type specification for bound \"{}\" could not be parsed to string!",
-                    &label
-                ));
+                let trans_str = val.extract().unwrap_or_else(|_| panic!("Type specification for bound \"{}\" could not be parsed to string!",
+                    &label));
                 BoundTransform::parse_transform(trans_str).unwrap_or(BoundTransform::Linear)
             }
             None => BoundTransform::Linear,
         };
 
-        let range = dict.get_item("range").expect(&format!(
-            "Range specification for bound \"{}\" could not be found!",
-            &label
-        ));
+        let range = dict.get_item("range").unwrap_or_else(|| panic!("Range specification for bound \"{}\" could not be found!",
+            &label));
 
-        let range = range.extract::<(f64, f64)>().expect(&format!(
-            "Range for bound \"{}\" could not be parsed to (f64, f64)!",
-            &label
-        ));
+        let range = range.extract::<(f64, f64)>().unwrap_or_else(|_| panic!("Range for bound \"{}\" could not be parsed to (f64, f64)!",
+            &label));
 
         self.add_continuous_with_transform(label, range.1, range.0, transform.to_string())
         
@@ -158,46 +144,34 @@ impl PyBoundsConfig {
 
         let transform = match space {
             Some(val) => {
-                let trans_str = val.extract().expect(&format!(
-                    "Type specification for bound \"{}\" could not be parsed to string!",
-                    &label
-                ));
+                let trans_str = val.extract().unwrap_or_else(|_| panic!("Type specification for bound \"{}\" could not be parsed to string!",
+                    &label));
                 BoundTransform::parse_transform(trans_str).unwrap_or(BoundTransform::Linear)
             }
             None => BoundTransform::Linear,
         };
 
-        let range = dict.get_item("range").expect(&format!(
-            "Range specification for bound \"{}\" could not be found!",
-            &label
-        ));
+        let range = dict.get_item("range").unwrap_or_else(|| panic!("Range specification for bound \"{}\" could not be found!",
+            &label));
 
-        let range = range.extract::<(i64, i64)>().expect(&format!(
-            "Range for bound \"{}\" could not be parsed to (i64, i64)!",
-            &label
-        ));
+        let range = range.extract::<(i64, i64)>().unwrap_or_else(|_| panic!("Range for bound \"{}\" could not be parsed to (i64, i64)!",
+            &label));
 
         self.add_discrete_with_transform(label, range.1, range.0, transform.to_string())
         
     }
 
     fn parse_categorical(&mut self, label: &str, dict: &PyDict) {
-        let categories = dict.get_item("categories").expect(&format!(
-            "Categories for categorical bound \"{}\" could not be found!",
-            &label
-        ));
+        let categories = dict.get_item("categories").unwrap_or_else(|| panic!("Categories for categorical bound \"{}\" could not be found!",
+            &label));
 
-        let categories = categories.extract::<&PyList>().expect(&format!(
-            "Categories for categorical bound \"{}\" could not be parsed to list!",
-            &label
-        ));
+        let categories = categories.extract::<&PyList>().unwrap_or_else(|_| panic!("Categories for categorical bound \"{}\" could not be parsed to list!",
+            &label));
 
         let categories = categories.iter()
             .map(|item| 
-                item.extract::<&str>().expect(&format!(
-                    "Category in categorical bound \"{}\" could not be parsed to string!",
-                    &label
-                ))
+                item.extract::<&str>().unwrap_or_else(|_| panic!("Category in categorical bound \"{}\" could not be parsed to string!",
+                    &label))
             )
             .collect();
 
@@ -236,7 +210,7 @@ impl PyBounds {
         format!("{:?}", self.bounds)
     }
 
-    pub fn arr<'py>(&mut self, py: Python<'py>) -> PyObject {
+    pub fn arr(&mut self, py: Python<'_>) -> PyObject {
         self.bounds.bounds_arr().bounds_arr().clone().into_pyarray(py).into()
     }
 
@@ -271,27 +245,27 @@ impl PyBounds {
 
             for bound in self.bounds.iter_bounds() {
                 let item = x_dict.get_item(bound.label()) //try to get boundrepr from python dict
-                    .expect(&format!("Bound {} could not be found in python dict!", bound.label()));
+                    .unwrap_or_else(|| panic!("Bound {} could not be found in python dict!", bound.label()));
                     
                 let repr = match bound {
                     BoundType::Continuous(_) => {
                         let val = item.extract::<f64>()
-                            .expect(&format!("Python dict key for bound {} could not be parsed to f64!", bound.label()));
+                            .unwrap_or_else(|_| panic!("Python dict key for bound {} could not be parsed to f64!", bound.label()));
                         BoundRepr::Continuous((bound.label().into(), val)) 
                     },
                     BoundType::Discrete(_) => {
                         let val = item.extract::<i64>().ok()
-                            .expect(&format!("Python dict key for bound {} could not be parsed to i64!", bound.label()));
+                            .unwrap_or_else(|| panic!("Python dict key for bound {} could not be parsed to i64!", bound.label()));
                         BoundRepr::Discrete((bound.label().into(), val)) 
                     },
                     BoundType::Categorical(_) => {
                         let cat = item.extract::<String>().ok()
-                            .expect(&format!("Python dict key for bound {} could not be parsed to String!", bound.label()));
+                            .unwrap_or_else(|| panic!("Python dict key for bound {} could not be parsed to String!", bound.label()));
                         BoundRepr::Categorical((bound.label().into(), cat)) 
                     },
                     BoundType::Boolean(_) => {
                         let bool = item.extract::<bool>()
-                            .expect(&format!("Python dict key for bound {} could not be parsed to bool!", bound.label()));
+                            .unwrap_or_else(|_| panic!("Python dict key for bound {} could not be parsed to bool!", bound.label()));
                         BoundRepr::Boolean((bound.label().into(), bool)) 
                     },
                 };
@@ -339,7 +313,7 @@ impl PyLABCATConfig {
         self.labcat.forget_fn(f);
     }
 
-    pub fn build<'py>(&mut self, py: Python<'py>) -> PyLABCATManual {
+    pub fn build(&mut self, py: Python<'_>) -> PyLABCATManual {
         PyLABCATManual {
             labcat: LABCAT::new_preconfigured(
                 self.labcat.bounds().clone(),
@@ -362,19 +336,19 @@ impl PyLABCATManual {
         println!("{:?}", self.labcat.config())
     }
 
-    pub fn observations<'py>(&mut self, py: Python<'py>) -> (PyObject, PyObject) {
+    pub fn observations(&mut self, py: Python<'_>) -> (PyObject, PyObject) {
         let (x, y) = self.labcat.observations();
 
         (x.into_pyarray(py).into(), y.into_pyarray(py).into())
     }
 
-    pub fn thetas<'py>(&mut self, py: Python<'py>) -> PyObject {
+    pub fn thetas(&mut self, py: Python<'_>) -> PyObject {
         let thetas = self.labcat.thetas().to_owned();
 
         thetas.into_pyarray(py).into()
     }
 
-    pub fn suggest<'py>(&mut self, py: Python<'py>) -> PyObject {
+    pub fn suggest(&mut self, py: Python<'_>) -> PyObject {
         self.labcat.suggest(py).into_pyarray(py).into()
     }
 
@@ -385,13 +359,13 @@ impl PyLABCATManual {
         }
     }
 
-    pub fn predict<'py>(&mut self, x: &PyArray2<f64>, py: Python<'py>) -> PyObject {
+    pub fn predict(&mut self, x: &PyArray2<f64>, py: Python<'_>) -> PyObject {
         unsafe{
             self.labcat.predict(x.as_array().to_owned()).0.into_pyarray(py).into()
         }
     }
 
-    pub fn set_target_fn<'py>(&mut self, f: PyObject, py: Python<'py>) -> PyLABCATAuto {
+    pub fn set_target_fn(&mut self, f: PyObject, py: Python<'_>) -> PyLABCATAuto {
         PyLABCATAuto {
             labcat: LABCAT::new_preconfigured(
                 self.labcat.bounds().clone(),
@@ -431,7 +405,7 @@ impl PyLABCATAuto {
         self.labcat.print_interval(interval);
     }
 
-    pub fn run<'py>(&mut self, py: Python<'py>) -> OptimizationResult {
+    pub fn run(&mut self, py: Python<'_>) -> OptimizationResult {
         let res = self.labcat.run(py);
 
         OptimizationResult {
