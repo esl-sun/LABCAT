@@ -30,9 +30,6 @@ ndarray-linalg = { version = "0.16", features = ["openblas-static"] }
 name = "labcat"
 path = "./src/lib.rs"
 
-[[example]]
-name = "gp"
-
 [profile.release]
 lto = true
 
