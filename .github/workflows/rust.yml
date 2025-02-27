@@ -58,4 +58,5 @@ jobs:
         pip install maturin
         cd ./python
         maturin develop --release
+        pip install numpy
         python ./examples/demo.py
