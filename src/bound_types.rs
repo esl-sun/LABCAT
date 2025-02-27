@@ -376,6 +376,38 @@ pub enum BoundType {
     Boolean,
 }
 
+impl Display for BoundType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BoundType::Continuous(continuous) => write!(
+                f,
+                "\"{}\" (Continuous): Upper: {:.3}, Lower: {:.3}, Transform: {}",
+                continuous.label(),
+                continuous.transform.inv_transform(continuous.upper),
+                continuous.transform.inv_transform(continuous.lower),
+                continuous.transform
+            ),
+            BoundType::Discrete(discrete) => write!(
+                f,
+                "\"{}\" (Discrete): Upper: {}, Lower: {}, Transform: {}",
+                discrete.label(),
+                discrete.transform.inv_transform(discrete.upper as f_) as i_,
+                discrete.transform.inv_transform(discrete.lower as f_) as i_,
+                discrete.transform
+            ),
+            BoundType::Categorical(categorical) => write!(
+                f,
+                "\"{}\" (Categorical): {:?}",
+                categorical.label(),
+                categorical.categories
+            ),
+            BoundType::Boolean(boolean) => {
+                write!(f, "\"{}\" (Boolean): [true, false]", boolean.label())
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum BoundRepr {
     Continuous((String, f_)),

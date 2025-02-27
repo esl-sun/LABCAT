@@ -2,7 +2,7 @@ use std::{fmt::Display, marker::PhantomData, ops::Deref, slice::Iter};
 
 use ndarray::{Array1, ArrayView1};
 
-use crate::{
+pub use crate::{
     bound_types::{Boolean, BoundRepr, BoundTrait, BoundType, Categorical, Continuous, Discrete},
     bounds_array::ArrayBounds,
     bounds_transforms::BoundTransform,
@@ -29,6 +29,22 @@ pub struct Bounds<BoundsConfig = Config> {
 impl Default for Bounds {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Display for Bounds<Config> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.bounds
+            .iter()
+            .try_for_each(|bound| write!(f, "{}\n", bound))
+    }
+}
+
+impl Display for Bounds<Ready> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.bounds
+            .iter()
+            .try_for_each(|bound| write!(f, "{}\n", bound))
     }
 }
 

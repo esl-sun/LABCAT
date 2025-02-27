@@ -56,6 +56,17 @@ pub enum BoundTransformType {
     BiLog,
 }
 
+impl std::fmt::Display for BoundTransformType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BoundTransformType::Linear(_) => write!(f, "None"),
+            BoundTransformType::Log(_) => write!(f, "Log"),
+            BoundTransformType::Logistic(_) => write!(f, "Logistic"),
+            BoundTransformType::BiLog(_) => write!(f, "BiLog"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Linear {}
 
