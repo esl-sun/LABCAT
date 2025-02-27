@@ -160,32 +160,16 @@ impl LABCAT<Config> {
         self.config.prior_sigma = sigma;
     }
 
+    pub fn restarts(&mut self, restarts: bool) {
+        self.config.restarts = restarts;
+    }
+
     pub fn init_pts_fn(&mut self, f: PyObject) {
         self.py_config.py_callable_init_fn = Some(f);
     }
 
     pub fn forget_fn(&mut self, f: PyObject) {
         self.py_config.py_callable_forget_fn = Some(f);
-    }
-
-    pub fn target_tol(&mut self, tol: f_) {
-        self.config.target_tol = tol.into();
-    }
-
-    pub fn target_val(&mut self, val: f_) {
-        self.config.target_val = Some(val);
-    }
-
-    pub fn restarts(&mut self, restarts: bool) {
-        self.config.restarts = restarts;
-    }
-
-    pub fn max_samples(&mut self, n: usize) {
-        self.config.max_samples = Some(n)
-    }
-
-    pub fn max_time(&mut self, dur: Duration) {
-        self.config.max_time = Some((dur, Instant::now()));
     }
 
     pub fn build<'py>(self, py: Python<'py>) -> LABCAT<Manual> {
@@ -353,6 +337,22 @@ impl LABCAT<Manual> {
 
 #[cfg(feature = "python")]
 impl LABCAT<Auto> {
+    pub fn target_tol(&mut self, tol: f_) {
+        self.config.target_tol = tol.into();
+    }
+
+    pub fn target_val(&mut self, val: f_) {
+        self.config.target_val = Some(val);
+    }
+
+    pub fn max_samples(&mut self, n: usize) {
+        self.config.max_samples = Some(n)
+    }
+
+    pub fn max_time(&mut self, dur: Duration) {
+        self.config.max_time = Some((dur, Instant::now()));
+    }
+    
     pub fn print_interval(&mut self, interval: usize) {
         self.config.auto_print = Some(interval);
     }

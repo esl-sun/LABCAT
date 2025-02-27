@@ -327,18 +327,6 @@ impl PyLABCATConfig {
         self.labcat.beta(beta);
     }
 
-    fn target_tol(&mut self, tol: f64) {
-        self.labcat.target_tol(tol);
-    }
-
-    fn target_val(&mut self, val: f64) {
-        self.labcat.target_val(val);
-    }
-
-    fn max_samples(&mut self, n: usize) {
-        self.labcat.max_samples(n);
-    }
-
     fn prior_sigma(&mut self, prior_sigma: f64) {
         self.labcat.prior_sigma(prior_sigma);
     }
@@ -423,6 +411,22 @@ struct PyLABCATAuto {
 
 #[pymethods]
 impl PyLABCATAuto {
+    fn target_tol(&mut self, tol: f64) {
+        self.labcat.target_tol(tol);
+    }
+
+    fn target_val(&mut self, val: f64) {
+        self.labcat.target_val(val);
+    }
+
+    fn max_samples(&mut self, n: usize) {
+        self.labcat.max_samples(n);
+    }
+
+    pub fn max_time(&mut self, seconds: u64) {
+        self.labcat.max_time(std::time::Duration::new(seconds, 0));
+    }
+    
     pub fn print_interval(&mut self, interval: usize) {
         self.labcat.print_interval(interval);
     }

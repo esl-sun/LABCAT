@@ -185,9 +185,13 @@ pub struct LABCAT<LABCATConfigState = Config> {
 #[cfg(not(feature = "python"))]
 impl LABCAT {
     pub fn new(bounds: Bounds<Ready>) -> LABCAT<Config> {
-        let gp = GP::new(bounds.bounds_arr().to_owned(), 0.5, 0.1);
-        let init_pts_fn = |d: usize| d + 1;
-        let forget_fn = |d: usize| 10 * d;
+        let gp = GP::new(
+            bounds.bounds_arr().to_owned(),
+            1.0 / bounds.dim() as f_,
+            0.1,
+        );
+        let init_pts_fn = |d: usize| 2 * d + 1;
+        let forget_fn = |d: usize| 7 * d;
         #[cfg(feature = "LHS")]
         let init_points = bounds.bounds_arr().LHS_sample(init_pts_fn(bounds.dim()));
         #[cfg(not(feature = "LHS"))]
@@ -227,31 +231,6 @@ impl LABCAT<Config> {
 
     pub fn forget_fn(mut self, f: fn(usize) -> usize) -> Self {
         self.forget_fn = f;
-        self
-    }
-
-    pub fn target_tol(mut self, tol: f_) -> Self {
-        self.config.target_tol = tol;
-        self
-    }
-
-    pub fn target_val(mut self, val: f_) -> Self {
-        self.config.target_val = Some(val);
-        self
-    }
-
-    pub fn restarts(mut self, restarts: bool) -> Self {
-        self.config.restarts = restarts;
-        self
-    }
-
-    pub fn max_samples(mut self, n: usize) -> Self {
-        self.config.max_samples = Some(n);
-        self
-    }
-
-    pub fn max_time(mut self, dur: Duration) -> Self {
-        self.config.max_time = Some((dur, Instant::now()));
         self
     }
 
@@ -375,9 +354,6 @@ impl<S: LABCATReadyState> LABCAT<S> {
 
     #[cfg(not(feature = "python"))]
     fn restart(&mut self, _err: anyhow::Error) {
-        println!("RESTARTING");
-        println!("{}", _err);
-
         let mut gp = GP::new(
             self.bounds.bounds_arr().to_owned(),
             self.config.beta,
@@ -542,6 +518,32 @@ impl LABCAT<Manual> {
 
 #[cfg(not(feature = "python"))]
 impl LABCAT<Auto> {
+
+    pub fn target_tol(mut self, tol: f_) -> Self {
+        self.config.target_tol = tol;
+        self
+    }
+
+    pub fn target_val(mut self, val: f_) -> Self {
+        self.config.target_val = Some(val);
+        self
+    }
+
+    pub fn restarts(mut self, restarts: bool) -> Self {
+        self.config.restarts = restarts;
+        self
+    }
+
+    pub fn max_samples(mut self, n: usize) -> Self {
+        self.config.max_samples = Some(n);
+        self
+    }
+
+    pub fn max_time(mut self, dur: Duration) -> Self {
+        self.config.max_time = Some((dur, Instant::now()));
+        self
+    }
+
     pub fn print_interval(mut self, interval: usize) -> Self {
         self.config.auto_print = Some(interval);
         self
