@@ -3,19 +3,17 @@ use ord_subset::{OrdSubset, OrdSubsetIterExt};
 
 use crate::{
     bounds::{Bounds, ContinuousBounds, UpperLowerBounds},
-    doe::DoE,
+    doe::{DoE, DoeIter, RandomSampling},
     dtype,
     ei::AcqFunction,
     kernel::{BayesianKernel, Kernel, ARD},
     labcat::memory::LabcatMemory,
-    lhs::RandomSampling,
     memory::{
         BaseMemory, Memory, ObservationIO, ObservationInputRecenter, ObservationInputRescale,
         ObservationInputRotate, ObservationOutputRecenter, ObservationOutputRescale,
         ObservationTransform,
     },
     tune::{SurrogateTuning, TuningStrategy},
-    utils::{ColRefUtils, MatRefUtils},
     AskTell, Refit, Surrogate, SurrogateIO,
 };
 
@@ -35,6 +33,7 @@ where
     bounds: B,
     tr: ContinuousBounds<T>,
     doe: D,
+    doe_iter: DoeIter<D, T>,
     mem: BaseMemory<T>,
     acq: A,
     surrogate: S,
@@ -62,6 +61,7 @@ where
         Self {
             bounds,
             tr,
+            doe_iter: doe.iter(),
             doe,
             mem: BaseMemory::new(d),
             acq: A::default(),
@@ -86,71 +86,71 @@ where
     D: DoE<T>,
 {
     fn ask(&mut self) -> Vec<T> {
-        dbg!("ASK START");
 
-        if let Some(doe_x) = self.doe.get(self.mem.n()) {
-            return doe_x.to_vec();
+        if self.doe_iter.len() != 0 {
+            return self.doe_iter.next().expect("Should always yield next input point!")
         }
 
         let mut random_ei_pts = RandomSampling::default();
         random_ei_pts.build_DoE(10 * self.bounds.dim(), &self.tr);
 
-        dbg!("EI INIT");
-
         let a = random_ei_pts
             .DoE()
-            .cols()
+            .col_iter()
             .enumerate()
-            .map(|(i, col)| {
-                let acq = self.acq.probe(self.surrogate(), col.as_slice()).unwrap();
-                (i, acq)
+            .filter_map(|(i, col)| {
+                self
+                    .acq
+                    .probe(self.surrogate(), col.try_as_col_major().unwrap().as_slice())
+                    .and_then(|acq| (i, acq).into())
             })
             .ord_subset_max_by_key(|&(_, ei)| ei)
             .unwrap();
 
-        dbg!("EI MAXED");
 
-        // dbg!(a);
-
-        // unsafe {
-        //     core::slice::from_raw_parts(random_ei_pts.DoE().col(a.0).as_ptr(), self.bounds.dim())
-        // } // UNSAFE UNSAFE UNSAFE
-
-        random_ei_pts.DoE().col(a.0).as_slice().to_vec()
+        random_ei_pts
+            .DoE()
+            .col(a.0)
+            .try_as_col_major()
+            .unwrap()
+            .as_slice()
+            .to_vec()
     }
 
     fn tell(&mut self, x: &[T], y: &T) {
-        dbg!("TELL START");
+
         self.mem.append(x, y);
         self.surrogate.memory_mut().append(x, y);
-        dbg!("MEM APPENDED");
 
         if self.doe.n() > self.mem.n() {
             return;
         }
 
+        // Normalize Y
         self.surrogate.memory_mut().recenter_Y();
         self.surrogate.memory_mut().rescale_Y();
-        dbg!("Y RESCALED");
+
+        // Recenter and rotate X
         self.surrogate.memory_mut().recenter_X();
-        dbg!("X RECENTERED");
         self.surrogate.memory_mut().rotate_X();
-        dbg!("X ROTATED");
-        //MAX LOG LIK
+
+        // Refit surrogate
+        self.surrogate.refit().unwrap();
+
+        // Find most likely length-scales
         self.tuning_strategy.tune(&mut self.surrogate).unwrap(); // 5 fail
-        dbg!("GP TUNED");
         let l = self.surrogate().kernel().l().to_owned();
 
+        // Rescale X
         self.surrogate.memory_mut().rescale_X_with(&l);
-        dbg!("X RESCALED");
+        
+        // Discard observations over rho * d
         // TODO: impl m parameter
         self.surrogate
             .memory_mut()
             .tr_discard_with_retain(&self.tr, (self.f_discard)(self.bounds.dim()));
-        dbg!("MEM DISCARDED");
 
         self.surrogate.refit().unwrap(); // 1 fail
-        dbg!("GP REFITTED");
     }
 }
 

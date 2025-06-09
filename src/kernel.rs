@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use faer::{Mat, MatRef, Row};
 
-use crate::{dtype, gp::GPSurrogate, utils::MatRefUtils};
+use crate::{dtype, gp::GPSurrogate};
 
 pub trait Kernel<T>
 where
@@ -23,7 +23,9 @@ where
     fn k(&self, p: &[T], q: &[T]) -> T;
 
     fn k_diag(&self, X: MatRef<T>, x: &[T]) -> Row<T> {
-        Row::<T>::from_fn(X.ncols(), |i| self.k(X.col_as_slice(i), x))
+        Row::<T>::from_fn(X.ncols(), |i| {
+            self.k(X.col(i).try_as_col_major().unwrap().as_slice(), x)
+        })
     }
 
     fn sum<K: BaseKernel<T>>(self, other: K) -> KernelSum<T, Self, K> {

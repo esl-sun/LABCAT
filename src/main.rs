@@ -1,8 +1,8 @@
-use faer::{unzipped, zipped, Col, Mat, Row};
-use faer_ext::{IntoFaer, IntoNdarray};
+use faer::linalg::solvers::DenseSolveCore;
+use faer::{unzip, zip, Col, Mat, Row};
+// use faer_ext::{IntoFaer, IntoNdarray};
 
 use faer::linalg::zip::Diag;
-use faer::prelude::SolverCore;
 
 use labcat::bounds::ContinuousBounds;
 use labcat::ei::AcqFunction;
@@ -11,9 +11,9 @@ use labcat::kernel::{BaseKernel, BayesianKernel, KernelSum, ARD};
 use labcat::labcat::tune::LABCAT_GPTune;
 use labcat::labcat::{memory::LabcatMemory, LABCAT};
 use labcat::lhs::LHS;
-use labcat::memory::{BaseMemory, ObservationIO, ObservationTransform};
+use labcat::memory::{BaseMemory, ObservationIO, ObservationMaxMin, ObservationTransform};
 use labcat::tune::NoTuning;
-use labcat::utils::{Axis, MatMutUtils, MatRefUtils, MatUtils, Select};
+use labcat::utils::{Axis, MatMutUtils, MatRefUtils, Select};
 use labcat::{ei::EI, gp::GP, kde::KDE, sqexp::SqExpARD};
 use labcat::{
     kernel::Kernel, memory::Memory, AskTell, BayesianSurrogateIO, RefitWith, Surrogate, SurrogateIO,
@@ -49,26 +49,25 @@ fn main() {
     dbg!(&i);
     // dbg!(&i.as_ref().row_as_slice(1));
 
-    for item in i.indexed_iter() {
-        dbg!(item);
-    }
+    // for item in i.indexed_iter() {
+    //     dbg!(item);
+    // }
 
-    for col in i.as_ref().cols() {
+    for col in i.as_ref().col_iter() {
         dbg!(col);
     }
 
-    for row in i.as_ref().rows() {
+    for row in i.as_ref().row_iter() {
         dbg!(row);
     }
 
     dbg!(&i);
 
-    zipped!(&mut i)
-        .for_each_triangular_lower_with_index(Diag::Include, |i, j, unzipped!(mut v)| {
-            v.write(i as f64)
-        });
-    dbg!(&i);
-
+    // zip!(&mut i)
+    //     .for_each_triangular_lower_with_index(Diag::Include, |i, j, unzip!(mut v)| {
+    //         v.write(i as f64)
+    //     });
+    // dbg!(&i);
     dbg!(i.get_submatrix_with_idx(Select::Include, Axis::Col, vec![1, 2]));
     dbg!(i.get_submatrix_with_idx(Select::Exclude, Axis::Row, vec![0, 2]));
     // dbg!(i.remove_rows(vec![0, 2]));
@@ -91,14 +90,14 @@ fn main() {
     let r2 = r.clone();
     dbg!(r2);
 
-    let mut a = ndarray::Array2::<f64>::eye(4);
-    dbg!(&a);
-    dbg!(a.view().into_faer());
-    for col in a.view_mut().into_faer().cols_mut() {
-        dbg!(col[0]);
-    }
+    // let mut a = ndarray::Array2::<f64>::eye(4);
+    // dbg!(&a);
+    // dbg!(a.view().into_faer());
+    // for col in a.view_mut().into_faer().cols_mut() {
+    //     dbg!(col[0]);
+    // }
 
-    let l = faer::row::from_slice::<f64>(&[1.0, 2.0, 3.0, 50.0]);
+    let l = faer::RowRef::from_slice(&[1.0, 2.0, 3.0, 50.0]);
 
     // faer_core::zipped!(
     //     i.as_mut().diagonal_mut().column_vector_mut(),
@@ -108,12 +107,12 @@ fn main() {
     //     i.write(i.read() * l.read());
     // });
 
-    i.rows_mut().for_each(|col| {
-        faer::zipped!(col, l)
-            .for_each(|faer::unzipped!(mut col, l)| col.write(col.read() + l.read()));
-    });
+    // i.rows_mut().for_each(|col| {
+    //     faer::zip!(col, l)
+    //         .for_each(|faer::unzip!(mut col, l)| col.write(col.read() + l.read()));
+    // });
 
-    dbg!(i.as_ref().into_ndarray());
+    // dbg!(i.as_ref().into_ndarray());
 
     // let s = &[0.0, 1.0, 2.0];
 
@@ -167,7 +166,7 @@ fn main() {
         [-16.0, -43.0, 98.0],
     ];
 
-    let m = m.cholesky(faer::Side::Lower).unwrap();
+    let m = m.llt(faer::Side::Lower).unwrap();
     dbg!(&m);
 
     let m = m.inverse();
@@ -224,7 +223,9 @@ fn main() {
         let y = (obj)(&x);
         dbg!(&x);
         dbg!(&y);
+        dbg!(labcat.memory().min_obs());
         labcat.tell(&x, &y);
+        dbg!(labcat.surrogate().memory().n());
     }
 
     // dbg!(labcat.memory().Y());
@@ -232,4 +233,15 @@ fn main() {
 
     // dbg!(labcat.surrogate().K());
     // a.optimize();
+
+    let A = Mat::<f64>::zeros(4, 3);
+    let B = Mat::<f64>::zeros(4, 3);
+    let mut C = Mat::<f64>::zeros(4, 3);
+    // let C = &mut C;
+
+    // sums `A` and `B` and stores the result in `C`.
+    zip!(&mut C, &A, &B).for_each(|unzip!(c, a, b)| *c = *a + *b);
+
+    // sums `A`, `B` and `C` into a new matrix `D`.
+    let D = zip!(&C, &A, &B).map(|unzip!(c, a, b)| *a + *b + *c);
 }

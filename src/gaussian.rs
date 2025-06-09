@@ -1,4 +1,5 @@
-use ndarray::ArrayView1;
+use faer::ColRef;
+// use ndarray::ArrayView1;
 use num_traits::real::Real;
 use simba::scalar::RealField;
 
@@ -26,8 +27,10 @@ where
     }
 
     fn k(&self, p: &[T], q: &[T]) -> T {
-        let p: ArrayView1<'_, T> = p.into();
-        let q: ArrayView1<'_, T> = q.into();
+        // let p: ArrayView1<'_, T> = p.into();
+        // let q: ArrayView1<'_, T> = q.into();
+        let p = ColRef::from_slice(p);
+        let q = ColRef::from_slice(q);
 
         #[cfg(debug_assertions)]
         if p.shape() != q.shape() {
@@ -36,7 +39,7 @@ where
 
         let dif = &p - &q;
         //TODO: .. / h^2 ?
-        let exponent = T::neg(T::half()) * dif.dot(&dif) / self.h; // -0.5 * ...
+        let exponent = T::neg(T::half()) * (dif.transpose() * &dif) / self.h; // -0.5 * ...
         let norm_factor = Real::recip(Real::sqrt(Real::powi(
             T::two_pi() * self.h,
             self.dim

@@ -1,7 +1,7 @@
 use std::{iter::Product, ops::Div};
 
-use faer::{unzip, zip, Mat};
-use ndarray::{Array2, ArrayView1};
+use faer::{unzip, zip, ColRef, Mat};
+// use ndarray::{Array2, ArrayView1};
 use num_traits::real::Real;
 
 use crate::{
@@ -24,7 +24,7 @@ where
 
 impl<T> BaseKernel<T> for SqExp<T>
 where
-    T: dtype + Real + Product + Div<Output = T>,
+    T: dtype + Real + Product + Div<Output = T> + 'static,
 {
     fn new(_: usize) -> Self {
         SqExp {
@@ -35,16 +35,17 @@ where
     }
 
     fn k(&self, p: &[T], q: &[T]) -> T {
-        let p: ArrayView1<'_, T> = p.into();
-        let q: ArrayView1<'_, T> = q.into();
+        let p = faer::ColRef::from_slice(p);
+        let q = faer::ColRef::from_slice(q);
 
         #[cfg(debug_assertions)]
         if p.shape() != q.shape() {
-            panic!("p and q should have the same shape!");
+            panic!("p and q should have the same length!");
         }
 
         let dif = &p - &q;
-        let exponent = T::half().neg() * dif.dot(&dif) / self.l; // -0.5 * ...
+        let exponent = T::half().neg() * (dif.transpose() * &dif) / self.l; // -0.5 * ...
+                                                                            // let exponent = T::half();
         let val: T = self.sigma_f().powi(2) * exponent.exp();
 
         match &p.eq(&q) {
@@ -114,12 +115,12 @@ where
     sigma_f: T,
     sigma_n: T,
     l: Vec<T>,
-    l_inv: Array2<T>,
+    l_inv: Mat<T>,
 }
 
 impl<T> BaseKernel<T> for SqExpARD<T>
 where
-    T: dtype + Real + Product,
+    T: dtype + Real + Product + 'static,
 {
     fn new(d: usize) -> Self {
         SqExpARD {
@@ -127,13 +128,15 @@ where
             sigma_f: T::one(),
             sigma_n: T::zero(),
             l: vec![T::one(); d],
-            l_inv: Array2::eye(d),
+            l_inv: Mat::identity(d, d),
         }
     }
 
     fn k(&self, p: &[T], q: &[T]) -> T {
-        let p: ArrayView1<'_, T> = p.into();
-        let q: ArrayView1<'_, T> = q.into();
+        // let p: ArrayView1<'_, T> = p.into();
+        // let q: ArrayView1<'_, T> = q.into();
+        let p = ColRef::from_slice(p);
+        let q = ColRef::from_slice(q);
 
         #[cfg(debug_assertions)]
         if p.shape() != q.shape() {
@@ -141,7 +144,7 @@ where
         }
 
         let dif = &p - &q;
-        let exponent = T::half().neg() * dif.dot(&self.l_inv).dot(&dif); // -0.5 * ...
+        let exponent = T::half().neg() * (&dif.transpose() * &self.l_inv * &dif); // -0.5 * ...
         let val: T = self.sigma_f().powi(2) * exponent.exp();
 
         match &p.eq(&q) {
@@ -174,11 +177,12 @@ where
             .zip(new_l.iter())
             .for_each(|(old_l, new_l)| *old_l = *new_l);
 
-        self.l_inv
-            .diag_mut()
-            .iter_mut()
-            .zip(self.l.iter())
-            .for_each(|(old, new)| *old = T::one() / new.powi(2));
+        let l = self.l().to_owned();
+        zip!(
+            self.l_inv.diagonal_mut().column_vector_mut(),
+            ColRef::from_slice(&l)
+        )
+        .for_each(|unzip!(mut old, new)| *old = T::one() / new.powi(2));
     }
 
     fn whiten_l(&mut self) {

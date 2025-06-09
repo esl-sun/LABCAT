@@ -7,7 +7,7 @@ use ord_subset::{OrdSubset, OrdSubsetIterExt};
 use crate::utils::{Axis, RowRefUtils, Select};
 use crate::{
     dtype,
-    utils::{MatMutUtils, MatRefUtils, ColRefUtils},
+    utils::{MatMutUtils, MatRefUtils},
 };
 
 pub trait Memory<T>
@@ -64,7 +64,7 @@ where
             .enumerate()
             .ord_subset_max_by_key(|&(_, x)| x)?;
 
-        let x_max = self.X().col(i).as_slice();
+        let x_max = self.X().col(i).try_as_col_major().unwrap().as_slice();
         Some((i, x_max, y_max))
     }
 
@@ -77,7 +77,7 @@ where
             .enumerate()
             .ord_subset_min_by_key(|&(_, x)| x)?;
 
-        let x_min = self.X().col(i).as_slice();
+        let x_min = self.X().col(i).try_as_col_major().unwrap().as_slice();
 
         Some((i, x_min, y_min))
     }
@@ -350,8 +350,8 @@ where
 
         let l = faer::ColRef::from_slice(l);
 
-        //TODO: Avoid ref to private member?
-        self.X_mut().cols_mut().for_each(|col| {
+        #[allow(unused_mut)]
+        self.X_mut().col_iter_mut().for_each(|col| {
             zip!(col, l).for_each(|unzip!(mut col, l)| *col = *col / *l);
         });
     }
@@ -453,7 +453,10 @@ where
         let mut X = Mat::new();
         unsafe { X.set_dims(d, 0) }
 
-        Self { X, Y: Row::zeros(0) }
+        Self {
+            X,
+            Y: Row::zeros(0),
+        }
     }
 
     fn dim(&self) -> usize {
@@ -473,11 +476,13 @@ where
     }
 
     fn Y(&self) -> &[T] {
-        self.Y.as_slice()
+        self.Y.try_as_row_major().unwrap().as_slice()
     }
 
     fn Y_mut(&mut self) -> &mut [T] {
-        self.Y.as_slice_mut()
+        // self.Y.as_mut().as_slice_mut()
+        // (&mut self.Y).as_slice_mut()
+        self.Y.try_as_row_major_mut().unwrap().as_slice_mut()
     }
 
     fn append(&mut self, x: &[T], y: &T) {
@@ -526,9 +531,7 @@ where
         self.X = self
             .X()
             .get_submatrix_with_idx(Select::Exclude, Axis::Col, vec![i]);
-        // TODO: RowRef::from_slice in faer
-        self.Y = faer::ColRef::from_slice(self.Y())
-            .transpose()
+        self.Y = faer::RowRef::from_slice(self.Y())
             .get_subrow_with_idx(Select::Exclude, vec![i]);
     }
 
@@ -536,8 +539,7 @@ where
         self.X = self
             .X()
             .get_submatrix_with_idx(Select::Exclude, Axis::Col, idx.clone());
-        self.Y = faer::ColRef::from_slice(self.Y())
-            .transpose()
+        self.Y = faer::RowRef::from_slice(self.Y())
             .get_subrow_with_idx(Select::Exclude, idx);
     }
 
@@ -546,7 +548,7 @@ where
         let mut X = Mat::new();
         unsafe { X.set_dims(d, 0) }
         self.X = X;
-        self.Y = Row::new();
+        self.Y = Row::zeros(0);
     }
 }
 

@@ -1,10 +1,10 @@
 use std::ops::IndexMut;
 
 use faer::{
-    col::{AsColMut, AsColRef},
+    col::AsColRef,
     mat::{AsMatMut, AsMatRef},
-    row::{AsRowMut, AsRowRef},
-    unzip, zip, Col, ColMut, ColRef, Mat, Row, RowMut, RowRef, Side,
+    row::AsRowRef,
+    unzip, zip, Col, Mat, Row, Side,
 };
 // use ndarray::{Array, Ix2};
 
@@ -68,11 +68,11 @@ where
     Self: AsColRef + AsMatRef<T = E, Rows = usize>,
     E: dtype,
 {
-    #[inline]
-    #[track_caller]
-    fn as_slice(&self) -> &[E] {
-        self.as_col_ref().try_as_col_major().unwrap().as_slice()
-    }
+    // #[inline]
+    // #[track_caller]
+    // fn as_slice(&self) -> &[E] {
+    //     self.as_col_ref().try_as_col_major().unwrap().as_slice()
+    // }
 
     #[inline]
     #[track_caller]
@@ -118,24 +118,6 @@ where
     Self: AsRowRef + AsMatRef<T = E, Cols = usize>,
     E: dtype,
 {
-    // #[inline]
-    // #[track_caller]
-    // fn as_slice(&self) -> &[E] {
-    //     let ncols = self.as_row_ref().ncols();
-    //     let ptr = self.as_row_ref().as_ptr();
-    //     E::faer_map(
-    //         ptr,
-    //         #[inline(always)]
-    //         |ptr| unsafe { core::slice::from_raw_parts(ptr, ncols) },
-    //     )
-    // }
-
-    #[inline]
-    #[track_caller]
-    fn as_slice(&self) -> &[E] {
-        self.as_row_ref().try_as_row_major().unwrap().as_slice()
-    }
-
     #[inline]
     #[track_caller]
     fn get_subrow_with_idx(&self, select: Select, mut idx: Vec<usize>) -> Row<E> {
@@ -180,61 +162,22 @@ where
     Self: AsMatRef<T = E, Cols = usize, Rows = usize>,
     E: dtype,
 {
-    // fn to_owned_mat(&self) -> Mat<E> {
-    //     let mut mat = Mat::new();
-    //     mat.copy_from(self.as_mat_ref());
-    //     mat
+    // /// Returns a reference to a slice over the column at the given index.
+    // #[inline]
+    // #[track_caller]
+    // fn col_as_slice(&self, col: usize) -> &[E] {
+    //     assert!(col < self.as_mat_ref().ncols());
+    //     let nrows = self.as_mat_ref().nrows();
+    //     let ptr = self.as_mat_ref().ptr_at(0, col);
+    //     unsafe { core::slice::from_raw_parts(ptr, nrows) }
     // }
-
-    /// Returns a reference to a slice over the column at the given index.
-    #[inline]
-    #[track_caller]
-    fn col_as_slice(&self, col: usize) -> &[E] {
-        assert!(col < self.as_mat_ref().ncols());
-        let nrows = self.as_mat_ref().nrows();
-        let ptr = self.as_mat_ref().ptr_at(0, col);
-        unsafe { core::slice::from_raw_parts(ptr, nrows) }
-    }
-
-    #[inline]
-    #[track_caller]
-    fn cols<'a>(&'a self) -> impl DoubleEndedIterator<Item = ColRef<'a, E>> + 'a
-    where
-        E: 'a,
-    {
-        let row_stride = self.as_mat_ref().row_stride();
-
-        (0..self.as_mat_ref().ncols()).map(move |col_id| unsafe {
-            ColRef::from_raw_parts(
-                self.as_mat_ref().ptr_inbounds_at(0, col_id),
-                self.as_mat_ref().nrows(),
-                row_stride,
-            )
-        })
-    }
-
-    #[inline]
-    #[track_caller]
-    fn rows<'a>(&'a self) -> impl DoubleEndedIterator<Item = RowRef<'a, E>> + 'a
-    where
-        E: 'a,
-    {
-        let col_stride = self.as_mat_ref().col_stride();
-
-        (0..self.as_mat_ref().nrows()).map(move |row_id| unsafe {
-            RowRef::from_raw_parts(
-                self.as_mat_ref().ptr_inbounds_at(row_id, 0),
-                self.as_mat_ref().ncols(),
-                col_stride,
-            )
-        })
-    }
 
     #[inline]
     #[track_caller]
     fn product_trace(&self, rhs: impl MatRefUtils<E>) -> E {
-        self.cols()
-            .zip(rhs.rows())
+        self.as_mat_ref()
+            .col_iter()
+            .zip(rhs.as_mat_ref().row_iter())
             .map(|(col, row)| row * col)
             .fold(E::zero(), |acc, prod| acc + prod)
     }
@@ -280,7 +223,7 @@ where
             Axis::Col => self.as_mat_ref(),
             Axis::Row => self.as_mat_ref().transpose(),
         }
-        .cols()
+        .col_iter()
         .enumerate()
         .filter(|(col_id, _)| match select {
             Select::Include => idx.binary_search(col_id).is_ok(),
@@ -288,6 +231,7 @@ where
         })
         .enumerate()
         .for_each(|(new_col_id, (_, col))| {
+            #[allow(unused_mut)]
             zip!(
                 match axis {
                     Axis::Col => mat_red.as_mut(),
@@ -310,51 +254,6 @@ where
     Self: AsMatMut<T = E, Cols = usize, Rows = usize>,
     E: dtype,
 {
-    //TODO: change zip_apply_* to zipped! from faer crate
-    #[inline]
-    #[track_caller]
-    fn zip_apply_with_col_slice(&mut self, s: &[E], f: fn(E, E) -> E) {
-        #[cfg(debug_assertions)]
-        if self.as_mat_mut().ncols() != s.len() {
-            panic!(
-                "Number of rows in self ({}) and column slice length ({}) do not match!",
-                self.as_mat_mut().nrows(),
-                s.len()
-            );
-        }
-
-        let nrows = self.as_mat_mut().nrows();
-        let ncols = self.as_mat_mut().ncols();
-
-        (0..nrows)
-            .flat_map(move |i| (0..ncols).map(move |j| (i, j)))
-            .for_each(|(i, j)| {
-                *self.as_mat_mut().index_mut((i, j)) = f(*self.as_mat_mut().index_mut((i, j)), s[i])
-            });
-    }
-
-    #[inline]
-    #[track_caller]
-    fn zip_apply_with_row_slice(&mut self, s: &[E], f: fn(E, E) -> E) {
-        #[cfg(debug_assertions)]
-        if self.as_mat_mut().ncols() != s.len() {
-            panic!(
-                "Number of cols in self ({}) and row slice length ({}) do not match!",
-                self.as_mat_mut().ncols(),
-                s.len()
-            );
-        }
-
-        let nrows = self.as_mat_mut().nrows();
-        let ncols = self.as_mat_mut().ncols();
-
-        (0..nrows)
-            .flat_map(move |i| (0..ncols).map(move |j| (i, j)))
-            .for_each(|(i, j)| {
-                *self.as_mat_mut().index_mut((i, j)) = f(*self.as_mat_mut().index_mut((i, j)), s[j])
-            });
-    }
-
     #[inline]
     #[track_caller]
     fn fill_fn(&mut self, f: fn(usize, usize) -> E) {
@@ -382,40 +281,6 @@ where
 
     #[inline]
     #[track_caller]
-    fn cols_mut<'a>(&'a mut self) -> impl DoubleEndedIterator<Item = ColMut<'a, E>> + 'a
-    where
-        E: 'a,
-    {
-        let row_stride = self.as_mat_mut().row_stride();
-
-        (0..self.as_mat_mut().ncols()).map(move |col_id| unsafe {
-            ColMut::from_raw_parts_mut(
-                self.as_mat_mut().ptr_inbounds_at_mut(0, col_id),
-                self.as_mat_mut().nrows(),
-                row_stride,
-            )
-        })
-    }
-
-    #[inline]
-    #[track_caller]
-    fn rows_mut<'a>(&'a mut self) -> impl DoubleEndedIterator<Item = RowMut<'a, E>> + 'a
-    where
-        E: 'a,
-    {
-        let col_stride = self.as_mat_mut().col_stride();
-
-        (0..self.as_mat_mut().nrows()).map(move |row_id| unsafe {
-            RowMut::from_raw_parts_mut(
-                self.as_mat_mut().ptr_inbounds_at_mut(row_id, 0),
-                self.as_mat_mut().ncols(),
-                col_stride,
-            )
-        })
-    }
-
-    #[inline]
-    #[track_caller]
     fn fill_with_side(&mut self, side: Side) {
         if self.as_mat_mut().nrows() != self.as_mat_mut().ncols() {
             panic!("Matrix is not square!")
@@ -435,89 +300,3 @@ where
 }
 
 impl<E: dtype, M: AsMatMut<T = E, Cols = usize, Rows = usize>> MatMutUtils<E> for M {}
-
-pub trait MatUtils<E>
-where
-    E: dtype,
-{
-    fn indexed_iter(&self) -> impl Iterator<Item = ((usize, usize), &E)>;
-    fn fill_fn(&mut self, f: fn(usize, usize) -> E);
-    fn apply_fn<F>(&mut self, f: F)
-    where
-        F: FnMut((usize, usize), E) -> E;
-    fn fill_row_with_slice(&mut self, row: usize, s: &[E]);
-    fn fill_col_with_slice(&mut self, col: usize, s: &[E]);
-}
-
-impl<E: dtype> MatUtils<E> for Mat<E> {
-    fn indexed_iter(&self) -> impl Iterator<Item = ((usize, usize), &E)> {
-        (0..self.nrows())
-            .flat_map(|i| (0..self.ncols()).map(move |j| (i, j)))
-            .map(|(i, j)| ((i, j), self.get(i, j)))
-    }
-
-    fn fill_fn(&mut self, f: fn(usize, usize) -> E) {
-        let nrows = self.nrows();
-        let ncols = self.ncols();
-
-        (0..nrows)
-            .flat_map(move |i| (0..ncols).map(move |j| (i, j)))
-            .for_each(|(i, j)| self.write(i, j, f(i, j)));
-    }
-
-    fn apply_fn<F>(&mut self, mut f: F)
-    where
-        F: FnMut((usize, usize), E) -> E,
-    {
-        let nrows = self.nrows();
-        let ncols = self.ncols();
-
-        (0..nrows)
-            .flat_map(move |i| (0..ncols).map(move |j| (i, j)))
-            .for_each(|(i, j)| self.write(i, j, f((i, j), *self.get(i, j))));
-    }
-
-    fn fill_row_with_slice(&mut self, row: usize, s: &[E]) {
-        #[cfg(debug_assertions)]
-        if row >= self.nrows() {
-            panic!(
-                "Row index ({}) out of bounds for matrix with {} rows!",
-                row,
-                self.nrows()
-            );
-        }
-
-        #[cfg(debug_assertions)]
-        if s.len() != self.ncols() {
-            panic!(
-                "Length of slice ({}) does not match number of columns in matrix ({})!",
-                s.len(),
-                self.ncols()
-            );
-        }
-
-        (0..self.ncols()).for_each(|j| self.write(row, j, s[j]))
-    }
-
-    fn fill_col_with_slice(&mut self, col: usize, s: &[E]) {
-        #[cfg(debug_assertions)]
-        if col >= self.ncols() {
-            panic!(
-                "Col index ({}) out of bounds for matrix with {} cols!",
-                col,
-                self.ncols()
-            );
-        }
-
-        #[cfg(debug_assertions)]
-        if s.len() != self.nrows() {
-            panic!(
-                "Length of slice ({}) does not match number of rows in matrix ({})!",
-                s.len(),
-                self.nrows()
-            );
-        }
-
-        (0..self.nrows()).for_each(|i| self.write(i, col, s[i]))
-    }
-}

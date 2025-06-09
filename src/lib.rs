@@ -145,8 +145,8 @@ where
     A: AcqFunction<T, S>,
 {
     fn ask(&mut self) -> Vec<T> {
-        if let Some(doe_x) = self.doe.get(self.mem.n()) {
-            return doe_x.to_vec();
+        if self.mem.n() < self.doe.n() {
+            return self.doe.i(self.mem.n()).to_vec();
         }
 
         todo!()

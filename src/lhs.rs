@@ -1,13 +1,14 @@
 #![allow(non_snake_case)]
 
-use egobox_doe::{Lhs, LhsKind, SamplingMethod};
+use egobox_doe::Lhs;
+use egobox_doe::{LhsKind, SamplingMethod};
 use faer::{Mat, MatRef};
-use faer_ext::{IntoFaer, IntoNdarray};
-use ndarray::{Array2, ArrayView2};
-use ndarray_rand::rand::{self, Rng};
+use ndarray::Array2;
+// use ndarray::{Array2, ArrayView2};
+// use ndarray_rand::rand::{self, Rng};
 use num_traits::Zero;
 
-use crate::{bounds::UpperLowerBounds, doe::DoE, dtype, utils::MatRefUtils};
+use crate::{bounds::UpperLowerBounds, doe::DoE, dtype};
 
 #[derive(Debug, Clone)]
 pub struct LHS<T>
@@ -35,60 +36,21 @@ where
     where
         B: UpperLowerBounds<T>,
     {
-        let m = bounds.as_mat();
-        let b: ArrayView2<T> = m.as_ref().into_ndarray();
-
-        let doe = if n.is_zero() {
-            Array2::zeros((b.nrows(), 0))
+        self.doe = if n.is_zero() {
+            Mat::zeros(bounds.dim(), 0)
         } else {
-            Lhs::new(&b)
+            let v = bounds
+                .lb_ub()
+                .flat_map(|(&lb, &ub)| vec![lb, ub])
+                .collect::<Vec<_>>();
+            let b = Array2::from_shape_vec((bounds.dim(), 2), v).expect("Should never fail!");
+
+            let lhs = Lhs::new(&b)
                 .kind(LhsKind::Classic)
                 .sample(n)
-                .reversed_axes()
+                .reversed_axes();
+            faer::Mat::from_fn(lhs.nrows(), lhs.ncols(), |i, j| lhs[(i, j)])
         };
-
-        self.doe = doe.view().into_faer().to_owned_mat()
-    }
-
-    fn DoE(&self) -> MatRef<T> {
-        self.doe.as_ref()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct RandomSampling<T>
-where
-    T: dtype,
-{
-    doe: Mat<T>,
-}
-
-impl<T> Default for RandomSampling<T>
-where
-    T: dtype,
-{
-    fn default() -> Self {
-        Self {
-            doe: Mat::default(),
-        }
-    }
-}
-
-impl<T> DoE<T> for RandomSampling<T>
-where
-    T: dtype,
-{
-    fn build_DoE<B>(&mut self, n: usize, bounds: &B)
-    where
-        B: UpperLowerBounds<T>,
-    {
-        self.doe = Mat::from_fn(bounds.dim(), n, |i, _| {
-            T::from_f64(
-                rand::thread_rng()
-                    .gen_range(bounds.lb()[i].to_f64().unwrap()..bounds.ub()[i].to_f64().unwrap()),
-            )
-            .unwrap() //TODO: FIX UNWRAPS
-        })
     }
 
     fn DoE(&self) -> MatRef<T> {

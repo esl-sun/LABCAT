@@ -7,7 +7,7 @@ use anyhow::Result;
 
 use crate::kernel::BaseKernel;
 use crate::memory::{BaseMemory, ObservationDiscard, ObservationIO};
-use crate::utils::{ColRefUtils, MatRefUtils};
+use crate::utils::MatRefUtils;
 use crate::{dtype, Memory, Refit, RefitWith, SurrogateIO};
 
 #[derive(Debug, Clone)]
@@ -59,8 +59,10 @@ where
             self.mem
                 .X()
                 .as_ref()
-                .cols()
-                .fold(T::zero(), |acc, col| acc + self.kernel.k(col.as_slice(), x)),
+                .col_iter()
+                .fold(T::zero(), |acc, col| {
+                    acc + self.kernel.k(col.try_as_col_major().unwrap().as_slice(), x)
+                }),
         )
     }
 }

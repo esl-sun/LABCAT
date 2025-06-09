@@ -9,40 +9,43 @@ edition = "2021"
 anyhow = "1.0.95"
 # nalgebra = "0.32.3"
 # ndarray = "0.15.6"
-ndarray = { version = "0.15.6", features = ["rayon", "matrixmultiply-threading", "blas"] }
+    # ndarray = { version = "0.16.1", features = ["rayon", "matrixmultiply-threading", "blas"] }
 # Prod
 # ndarray-linalg = "0.16.0"
 # Windows_dev
-ndarray-linalg = { version = "^0.16", features = ["intel-mkl-static"] }
+# ndarray-linalg = { version = "^0.17", features = ["intel-mkl-static"] }
 # Linux dev
-# ndarray-linalg = { version = "0.16", features = ["openblas-static"] }
-ndarray-rand = "0.15.0"
+    # ndarray-linalg = { version = "0.17", features = ["openblas-static"] }
+    # ndarray-rand = "0.15.0"
 # nshare = { version = "0.9.0", features = ["nalgebra", "ndarray"] }
 num-traits = "0.2.15"
 simba = "0.9.0"
-egobox-doe = "0.25.2"
+egobox-doe = "0.29.0"
 linfa = "0.7.1"
 ord_subset = "3.1.1"
 # faer = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-clone-debug-impls", features = ["nalgebra", "ndarray", "nightly"]}
 # faer = {version = "0.18.2", features = ["nightly"]}
-faer = {version = "0.21.4", features = []}
-faer-ext = {version = "0.4.1", features = ["ndarray"]}
-faer-traits = "0.21.0"
+faer = {version = "0.22.6", features = []}
+# faer-ext = {version = "0.6.0", features = ["ndarray"]}
+faer-traits = "0.22.1"
 lazy_static = "1.4.0"
 statrs = "0.18.0"
 itertools = "0.14.0"
+rand = "0.9.1"
+ndarray = "0.15.6"
+# faer-ext = { version = "0.6.0", features = ["ndarray"] }
 # faer-core = "0.16.0"
 # log = "0.4.20"
 
 [dev-dependencies] 
 # ndarray = { version = "0.15.6", features = ["rayon", "matrixmultiply-threading", "blas"] }
-criterion = "0.5.1"
+criterion = "0.6.0"
 
 [target.'cfg(windows)'.dev-dependencies]
-ndarray-linalg = { version = "^0.16", features = ["intel-mkl-static"] }
+    # ndarray-linalg = { version = "^0.17", features = ["intel-mkl-static"] }
 
 [target.'cfg(unix)'.dev-dependencies]
-ndarray-linalg = { version = "^0.16", features = ["openblas-static"] }
+    # ndarray-linalg = { version = "^0.17", features = ["openblas-static"] }
 
 [lib]
 name = "labcat"

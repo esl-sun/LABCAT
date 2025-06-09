@@ -1,4 +1,4 @@
-use ndarray::{Array1, ArrayView1};
+use faer::ColRef;
 use num_traits::real::Real;
 
 use crate::{
@@ -29,15 +29,17 @@ where
 
     //TODO: Check normalization
     fn k(&self, p: &[T], q: &[T]) -> T {
-        let p: ArrayView1<'_, T> = p.into();
-        let q: ArrayView1<'_, T> = q.into();
+        // let p: ArrayView1<'_, T> = p.into();
+        // let q: ArrayView1<'_, T> = q.into();
+        let p = ColRef::from_slice(p);
+        let q = ColRef::from_slice(q);
 
         #[cfg(debug_assertions)]
         if p.shape() != q.shape() {
             panic!("p and q should have the same shape!");
         }
 
-        let dif: Array1<T> = &p - &q;
+        let dif = &p - &q;
 
         if dif.iter().all(|val| val.abs() <= T::one() / self.h) {
             // all within 1/h box

@@ -24,7 +24,7 @@ where
 impl<T: dtype> Default for LABCAT_GPTune<T> {
     fn default() -> Self {
         Self {
-            prior_sigma: T::half() * T::half() * T::half(), //TODO: REWRTIE 0.1
+            prior_sigma: T::one().powi(-1),
         }
     }
 }
@@ -57,7 +57,7 @@ where
         S: SurrogateIO<T> + GPSurrogate<T, KernType: ARD<T> + BayesianKernel<T>>,
     {
         let inner =
-            zip!(gp.alpha() * gp.alpha().transpose(), gp.K_inv()).map(|unzip!(a, k)| *a - *k);
+            zip!(&(gp.alpha() * gp.alpha().transpose()), gp.K_inv()).map(|unzip!(a, k)| *a - *k);
 
         // let _sigma_f = gp.kernel().sigma_f_gp_jac(gp).product_trace(inner.as_ref()) * T::half();
 

@@ -3,12 +3,11 @@
 
 use anyhow::Result;
 use faer::linalg::zip::Diag;
+// use faer::linalg::cholesky::llt::factor::
+use faer::linalg::solvers::{DenseSolveCore, Llt};
+use faer::prelude::*;
 // use faer::solvers::{Cholesky, SolverCore, SpSolver};
 use faer::{unzip, zip, Col, ColRef, Mat, MatRef};
-
-// use ndarray::{Array1, Array2, OwnedRepr};
-// use ndarray_linalg::{CholeskyFactorized, FactorizeC, InverseC, Lapack, SolveC, UPLO};
-// use num_traits::real::Real;
 
 use crate::kernel::{BaseKernel, BayesianKernel};
 use crate::memory::{ObservationIO, ObservationMean};
@@ -29,7 +28,7 @@ where
 {
     fn K(&self) -> MatRef<T>;
     fn K_inv(&self) -> MatRef<T>;
-    fn L(&self) -> &Cholesky<T>;
+    fn L(&self) -> MatRef<T>;
     fn alpha(&self) -> ColRef<T>;
     fn log_lik(&self) -> Option<T> {
         let y_mean = self.memory().Y_mean()?;
@@ -37,8 +36,8 @@ where
         Some(
             (T::one() + T::one()).recip().neg() //-0.5
             * zip!(faer::ColRef::from_slice(self.memory().Y()), self.alpha())
-                .map(|unzip!(y, a)| (y.read() - y_mean) * a.read()).sum() // (y - y_mean).dot(alpha)
-            - zip!(self.L().compute_l().diagonal().column_vector())
+                .map(|unzip!(y, a)| (*y - y_mean) * *a).sum() // (y - y_mean).dot(alpha)
+            - zip!(self.L().diagonal().column_vector())
                 .map(|unzip!(val)| val.ln()).sum(), // trace(ln(L)), precompute trace?
         )
     }
@@ -61,7 +60,7 @@ where
     kernel: K,
     K: Mat<T>,
     Kinv: Mat<T>,
-    L: Cholesky<T>,
+    L: Llt<T>,
     alpha: Col<T>,
     mem: M,
 }
@@ -93,8 +92,8 @@ where
         self.Kinv.as_ref()
     }
 
-    fn L(&self) -> &Cholesky<T> {
-        &self.L
+    fn L(&self) -> MatRef<T> {
+        self.L.L()
     }
 
     fn alpha(&self) -> ColRef<T> {
@@ -115,7 +114,7 @@ where
             K: Mat::identity(0, 0),
             Kinv: Mat::identity(0, 0),
             L: Mat::<T>::identity(0, 0)
-                .cholesky(faer::Side::Lower)
+                .llt(faer::Side::Lower)
                 .expect("Should never fail during init."),
             alpha: Col::zeros(0),
             mem: M::new(d),
@@ -166,26 +165,29 @@ where
         self.K.resize_with(n, n, |_, _| T::zero());
 
         //Calc lower triangular of K
+        #[allow(unused_mut)]
         zip!(&mut self.K).for_each_triangular_lower_with_index(
             Diag::Include,
             |i, j, unzip!(mut v)| {
-                *v = self
-                    .kernel
-                    .k(self.mem.X().col_as_slice(i), self.mem.X().col_as_slice(j))
+                *v = self.kernel.k(
+                    self.mem.X().col(i).try_as_col_major().unwrap().as_slice(),
+                    self.mem.X().col(j).try_as_col_major().unwrap().as_slice(),
+                )
             },
         );
 
         //Fill upper triangular to ensure symmetry
         self.K.fill_with_side(faer::Side::Lower);
         // dbg!("HERE");
-        self.L = self.K.cholesky(faer::Side::Lower)?;
-        self.Kinv = self.L.inverse(); // Causes stack to overflow
-                                      // dbg!("HERE");
+        self.L = self.K.llt(faer::Side::Lower)?;
+        self.Kinv = self.L.inverse();
 
         self.alpha.resize_with(n, |_| T::zero());
 
         let y_mean = self.mem.Y_mean().unwrap_or(T::zero());
-        zip!(&mut self.alpha).for_each_with_index(|i, unzip!(mut v)| *v = self.mem.Y()[i] - y_mean);
+        #[allow(unused_mut)]
+        zip!(self.alpha.rb_mut())
+            .for_each_with_index(|i, unzip!(mut v)| *v = self.mem.Y()[i] - y_mean);
         self.L.solve_in_place(&mut self.alpha);
 
         Ok(())

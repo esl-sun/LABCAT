@@ -1,7 +1,9 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use faer::{Entity, Mat, MatRef};
+use criterion::{criterion_group, criterion_main, Criterion};
+use faer::{Mat, MatRef};
 
-fn dummy<T: Entity>(_: MatRef<'_, T>) {}
+use std::hint::black_box;
+
+fn dummy<T>(_: MatRef<'_, T>) {}
 
 fn criterion_temp(c: &mut Criterion) {
     let m = Mat::<f64>::identity(10, 10);
