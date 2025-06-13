@@ -1,27 +1,22 @@
 #![allow(non_snake_case)]
+use itertools::Itertools;
 use ord_subset::{OrdSubset, OrdSubsetIterExt};
 
 use crate::{
-    bounds::{Bounds, ContinuousBounds, UpperLowerBounds},
-    doe::{DoE, DoeIter, RandomSampling},
-    dtype,
-    ei::AcqFunction,
-    kernel::{BayesianKernel, Kernel, ARD},
-    labcat::memory::LabcatMemory,
-    memory::{
+    bounds::{Bounds, ContinuousBounds, UpperLowerBounds}, doe::{DoE, DoeIter, RandomSampling}, dtype, ei::{AcqFunction, EI}, gp::GP, kernel::{BayesianKernel, Kernel, ARD}, labcat::{memory::LabcatMemory, tune::LABCAT_GPTune}, lhs::LHS, memory::{
         BaseMemory, Memory, ObservationIO, ObservationInputRecenter, ObservationInputRescale,
         ObservationInputRotate, ObservationOutputRecenter, ObservationOutputRescale,
         ObservationTransform,
-    },
-    tune::{SurrogateTuning, TuningStrategy},
-    AskTell, Refit, Surrogate, SurrogateIO,
+    }, sqexp::SqExpARD, tune::{SurrogateTuning, TuningStrategy}, AskTell, Refit, Surrogate, SurrogateIO
 };
 
 pub mod memory;
 pub mod tune;
 
+pub type LABCAT<T> = GenericLABCAT::<T, GP<T, SqExpARD<T>, LabcatMemory<T>>, LABCAT_GPTune<T>, EI<T>, ContinuousBounds<T>, LHS<T>>;
+
 #[derive(Debug, Clone)]
-pub struct LABCAT<T, S, H, A, B, D>
+pub struct GenericLABCAT<T, S, H, A, B, D>
 where
     T: dtype,
     S: SurrogateIO<T> + Kernel<T, KernType: ARD<T>> + Memory<T, MemType = LabcatMemory<T>>,
@@ -38,11 +33,12 @@ where
     acq: A,
     surrogate: S,
     tuning_strategy: H,
+    init_flag: bool,
     f_init: fn(usize) -> usize,
-    f_discard: fn(usize) -> usize,
+    rho: usize,
 }
 
-impl<T, S, H, A, B, D> LABCAT<T, S, H, A, B, D>
+impl<T, S, H, A, B, D> GenericLABCAT<T, S, H, A, B, D>
 where
     T: dtype,
     S: SurrogateIO<T> + Kernel<T, KernType: ARD<T>> + Memory<T, MemType = LabcatMemory<T>>,
@@ -51,7 +47,7 @@ where
     B: Bounds<T> + UpperLowerBounds<T>,
     D: DoE<T>,
 {
-    pub fn new(d: usize, beta: T, bounds: B) -> LABCAT<T, S, H, A, B, D> {
+    pub fn new(d: usize, beta: T, rho: usize, bounds: B) -> GenericLABCAT<T, S, H, A, B, D> {
         let tr = ContinuousBounds::<T>::scaled_unit(d, beta);
 
         let f_init = |d| 2 * d + 1;
@@ -67,13 +63,14 @@ where
             acq: A::default(),
             surrogate: S::new(d),
             tuning_strategy: H::default(),
+            init_flag: false,
+            rho,
             f_init,
-            f_discard: |d| 7 * d,
         }
     }
 }
 
-impl<T, S, H, A, B, D> AskTell<T> for LABCAT<T, S, H, A, B, D>
+impl<T, S, H, A, B, D> AskTell<T> for GenericLABCAT<T, S, H, A, B, D>
 where
     T: dtype + OrdSubset,
     S: SurrogateIO<T>
@@ -82,13 +79,19 @@ where
         + Refit<T>,
     H: SurrogateTuning<T, S>,
     A: AcqFunction<T, S>,
-    B: Bounds<T>,
+    B: Bounds<T> + UpperLowerBounds<T>,
     D: DoE<T>,
 {
-    fn ask(&mut self) -> Vec<T> {
-
+    type Ask = anyhow::Result<Vec<T>>;
+    type Tell = anyhow::Result<()>;
+    
+    
+    fn ask(&mut self) -> Self::Ask {
         if self.doe_iter.len() != 0 {
-            return self.doe_iter.next().expect("Should always yield next input point!")
+            return Ok(self
+                .doe_iter
+                .next()
+                .expect("Should always yield next input point!"))
         }
 
         let mut random_ei_pts = RandomSampling::default();
@@ -99,31 +102,38 @@ where
             .col_iter()
             .enumerate()
             .filter_map(|(i, col)| {
-                self
-                    .acq
+                self.acq
                     .probe(self.surrogate(), col.try_as_col_major().unwrap().as_slice())
                     .and_then(|acq| (i, acq).into())
             })
             .ord_subset_max_by_key(|&(_, ei)| ei)
             .unwrap();
 
-
-        random_ei_pts
+        Ok(random_ei_pts
             .DoE()
             .col(a.0)
             .try_as_col_major()
             .unwrap()
             .as_slice()
-            .to_vec()
+            .to_vec())
     }
 
-    fn tell(&mut self, x: &[T], y: &T) {
-
+    fn tell(&mut self, x: &[T], y: &T) -> Self::Tell {
         self.mem.append(x, y);
         self.surrogate.memory_mut().append(x, y);
 
+        // Guard clause: Do not update model if still in init phase
         if self.doe.n() > self.mem.n() {
-            return;
+            return Ok(());
+        }
+
+        // If finished with DoE, initialize transforms once
+        if !self.init_flag {
+            self.surrogate.memory_mut().reset_transform();
+            self.surrogate.memory_mut().recenter_X();
+            let axis_lens = self.bounds.lb_ub().map(|(lb, ub)| ub.abs_sub(*lb)).collect_vec();
+            self.surrogate.memory_mut().rescale_X_with(&axis_lens);
+            self.init_flag = true;
         }
 
         // Normalize Y
@@ -134,27 +144,29 @@ where
         self.surrogate.memory_mut().recenter_X();
         self.surrogate.memory_mut().rotate_X();
 
-        // Refit surrogate
-        self.surrogate.refit().unwrap();
+        // // Refit surrogate
+        // self.surrogate.refit().unwrap();
 
         // Find most likely length-scales
-        self.tuning_strategy.tune(&mut self.surrogate).unwrap(); // 5 fail
+        let _ = self.tuning_strategy.tune(&mut self.surrogate); // 5 fail
         let l = self.surrogate().kernel().l().to_owned();
 
         // Rescale X
         self.surrogate.memory_mut().rescale_X_with(&l);
-        
+
         // Discard observations over rho * d
         // TODO: impl m parameter
         self.surrogate
             .memory_mut()
-            .tr_discard_with_retain(&self.tr, (self.f_discard)(self.bounds.dim()));
+            .tr_discard_with_retain(&self.tr, self.bounds.dim() * self.rho);
 
-        self.surrogate.refit().unwrap(); // 1 fail
+        self.surrogate.refit()?; // 1 fail
+
+        Ok(())
     }
 }
 
-impl<T, S, H, A, B, D> Surrogate<T> for LABCAT<T, S, H, A, B, D>
+impl<T, S, H, A, B, D> Surrogate<T> for GenericLABCAT<T, S, H, A, B, D>
 where
     T: dtype,
     S: SurrogateIO<T> + Kernel<T, KernType: ARD<T>> + Memory<T, MemType = LabcatMemory<T>>,
@@ -174,7 +186,7 @@ where
     }
 }
 
-impl<T, S, H, A, B, D> Memory<T> for LABCAT<T, S, H, A, B, D>
+impl<T, S, H, A, B, D> Memory<T> for GenericLABCAT<T, S, H, A, B, D>
 where
     T: dtype,
     S: SurrogateIO<T> + Kernel<T, KernType: ARD<T>> + Memory<T, MemType = LabcatMemory<T>>,
@@ -194,7 +206,7 @@ where
     }
 }
 
-impl<T, S, H, A, B, D> TuningStrategy<T, S> for LABCAT<T, S, H, A, B, D>
+impl<T, S, H, A, B, D> TuningStrategy<T, S> for GenericLABCAT<T, S, H, A, B, D>
 where
     T: dtype,
     S: SurrogateIO<T> + Kernel<T, KernType: ARD<T>> + Memory<T, MemType = LabcatMemory<T>>,

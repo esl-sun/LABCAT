@@ -14,7 +14,7 @@ where
     fn kernel_mut(&mut self) -> &mut Self::KernType;
 }
 
-pub trait BaseKernel<T>
+pub trait BaseKernel<T>: Clone
 where
     Self: Sized,
     T: dtype,

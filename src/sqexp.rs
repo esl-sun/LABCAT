@@ -178,6 +178,8 @@ where
             .for_each(|(old_l, new_l)| *old_l = *new_l);
 
         let l = self.l().to_owned();
+        
+        #[allow(unused_mut)]
         zip!(
             self.l_inv.diagonal_mut().column_vector_mut(),
             ColRef::from_slice(&l)

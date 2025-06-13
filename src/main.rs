@@ -1,22 +1,16 @@
 use faer::linalg::solvers::DenseSolveCore;
-use faer::{unzip, zip, Col, Mat, Row};
+use faer::{Col, Mat, Row};
 // use faer_ext::{IntoFaer, IntoNdarray};
 
-use faer::linalg::zip::Diag;
-
 use labcat::bounds::ContinuousBounds;
-use labcat::ei::AcqFunction;
-use labcat::gp::GPSurrogate;
 use labcat::kernel::{BaseKernel, BayesianKernel, KernelSum, ARD};
-use labcat::labcat::tune::LABCAT_GPTune;
-use labcat::labcat::{memory::LabcatMemory, LABCAT};
-use labcat::lhs::LHS;
+use labcat::labcat::LABCAT;
+use labcat::labcat::memory::LabcatMemory;
 use labcat::memory::{BaseMemory, ObservationIO, ObservationMaxMin, ObservationTransform};
-use labcat::tune::NoTuning;
-use labcat::utils::{Axis, MatMutUtils, MatRefUtils, Select};
-use labcat::{ei::EI, gp::GP, kde::KDE, sqexp::SqExpARD};
+use labcat::utils::{Axis, MatRefUtils, Select};
+use labcat::{gp::GP, kde::KDE, sqexp::SqExpARD};
 use labcat::{
-    kernel::Kernel, memory::Memory, AskTell, BayesianSurrogateIO, RefitWith, Surrogate, SurrogateIO,
+    kernel::Kernel, memory::Memory, AskTell, RefitWith, Surrogate, SurrogateIO,
 };
 
 fn main() {
@@ -35,7 +29,7 @@ fn main() {
     let mem = BaseMemory::<f64>::new(5);
     dbg!(mem);
 
-    let mut i = Mat::<f64>::identity(4, 4);
+    let i = Mat::<f64>::identity(4, 4);
     // i.apply_fn(|(i, j), val| i as f64);
 
     // let k = i * j;
@@ -97,7 +91,7 @@ fn main() {
     //     dbg!(col[0]);
     // }
 
-    let l = faer::RowRef::from_slice(&[1.0, 2.0, 3.0, 50.0]);
+    let _ = faer::RowRef::from_slice(&[1.0, 2.0, 3.0, 50.0]);
 
     // faer_core::zipped!(
     //     i.as_mut().diagonal_mut().column_vector_mut(),
@@ -192,14 +186,7 @@ fn main() {
     // dbg!(ei.probe(&gp, &[2.0, 1.0])); //CHECKED
     // dbg!(gp.log_lik()); //CHECKED
 
-    let mut labcat = LABCAT::<
-        f64,
-        GP<f64, SqExpARD<f64>, LabcatMemory<f64>>,
-        LABCAT_GPTune<f64>,
-        EI<f64>,
-        ContinuousBounds<f64>,
-        LHS<f64>,
-    >::new(2, 1.0, ContinuousBounds::scaled_unit(2, 5.0));
+    let mut labcat = LABCAT::new(2, 1.0, 7, ContinuousBounds::scaled_unit(2, 5.0));
 
     ////////////////////////////
 
@@ -219,12 +206,12 @@ fn main() {
 
     for i in 0..500 {
         dbg!(i);
-        let x = labcat.ask();
+        let x = labcat.ask().unwrap();
         let y = (obj)(&x);
         dbg!(&x);
         dbg!(&y);
         dbg!(labcat.memory().min_obs());
-        labcat.tell(&x, &y);
+        labcat.tell(&x, &y).unwrap();
         dbg!(labcat.surrogate().memory().n());
     }
 
@@ -234,14 +221,14 @@ fn main() {
     // dbg!(labcat.surrogate().K());
     // a.optimize();
 
-    let A = Mat::<f64>::zeros(4, 3);
-    let B = Mat::<f64>::zeros(4, 3);
-    let mut C = Mat::<f64>::zeros(4, 3);
-    // let C = &mut C;
+    // let A = Mat::<f64>::zeros(4, 3);
+    // let B = Mat::<f64>::zeros(4, 3);
+    // let mut C = Mat::<f64>::zeros(4, 3);
+    // // let C = &mut C;
 
-    // sums `A` and `B` and stores the result in `C`.
-    zip!(&mut C, &A, &B).for_each(|unzip!(c, a, b)| *c = *a + *b);
+    // // sums `A` and `B` and stores the result in `C`.
+    // zip!(&mut C, &A, &B).for_each(|unzip!(c, a, b)| *c = *a + *b);
 
-    // sums `A`, `B` and `C` into a new matrix `D`.
-    let D = zip!(&C, &A, &B).map(|unzip!(c, a, b)| *a + *b + *c);
+    // // sums `A`, `B` and `C` into a new matrix `D`.
+    // let D = zip!(&C, &A, &B).map(|unzip!(c, a, b)| *a + *b + *c);
 }

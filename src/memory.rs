@@ -7,7 +7,7 @@ use ord_subset::{OrdSubset, OrdSubsetIterExt};
 use crate::utils::{Axis, RowRefUtils, Select};
 use crate::{
     dtype,
-    utils::{MatMutUtils, MatRefUtils},
+    utils::MatRefUtils,
 };
 
 pub trait Memory<T>
@@ -96,25 +96,25 @@ where
 
     #[inline]
     #[track_caller]
-    fn max_x(&self) -> Option<&[T]> {
+    fn x_max(&self) -> Option<&[T]> {
         Some(self.max_obs()?.1)
     }
 
     #[inline]
     #[track_caller]
-    fn min_x(&self) -> Option<&[T]> {
+    fn x_min(&self) -> Option<&[T]> {
         Some(self.min_obs()?.1)
     }
 
     #[inline]
     #[track_caller]
-    fn max_y(&self) -> Option<&T> {
+    fn y_max(&self) -> Option<&T> {
         Some(self.max_obs()?.2)
     }
 
     #[inline]
     #[track_caller]
-    fn min_y(&self) -> Option<&T> {
+    fn y_min(&self) -> Option<&T> {
         Some(self.min_obs()?.2)
     }
 
@@ -331,7 +331,7 @@ pub trait ObservationTransform<T>: ObservationIO<T>
 where
     T: dtype,
 {
-    fn x_prime(&self) -> impl Fn(&[T]) -> &[T];
+    fn x_prime(&self) -> impl Fn(&[T]) -> Vec<T>;
     fn X_prime(&self) -> Mat<T>; //TODO: May need to become owned refs
     fn y_prime(&self) -> impl Fn(&T) -> T;
     fn Y_prime(&self) -> Row<T>;
@@ -366,7 +366,7 @@ where
         Self: ObservationMaxMin<T>,
         T: OrdSubset,
     {
-        if let Some(&max) = <Self as ObservationMaxMin<T>>::max_y(self) {
+        if let Some(&max) = <Self as ObservationMaxMin<T>>::y_max(self) {
             self.rescale_Y_with(&max)
         }
     }
@@ -383,7 +383,7 @@ where
         Self: ObservationMaxMin<T>,
         T: OrdSubset,
     {
-        if let Some(min) = <Self as ObservationMaxMin<T>>::min_x(self) {
+        if let Some(min) = <Self as ObservationMaxMin<T>>::x_min(self) {
             self.recenter_X_with(&min.to_owned())
         }
     }
@@ -400,7 +400,7 @@ where
         Self: ObservationMaxMin<T>,
         T: OrdSubset,
     {
-        if let Some(&min) = <Self as ObservationMaxMin<T>>::min_y(self) {
+        if let Some(&min) = <Self as ObservationMaxMin<T>>::y_min(self) {
             self.recenter_Y_with(&min)
         }
     }
@@ -531,16 +531,14 @@ where
         self.X = self
             .X()
             .get_submatrix_with_idx(Select::Exclude, Axis::Col, vec![i]);
-        self.Y = faer::RowRef::from_slice(self.Y())
-            .get_subrow_with_idx(Select::Exclude, vec![i]);
+        self.Y = faer::RowRef::from_slice(self.Y()).get_subrow_with_idx(Select::Exclude, vec![i]);
     }
 
     fn discard_mult(&mut self, idx: Vec<usize>) {
         self.X = self
             .X()
             .get_submatrix_with_idx(Select::Exclude, Axis::Col, idx.clone());
-        self.Y = faer::RowRef::from_slice(self.Y())
-            .get_subrow_with_idx(Select::Exclude, idx);
+        self.Y = faer::RowRef::from_slice(self.Y()).get_subrow_with_idx(Select::Exclude, idx);
     }
 
     fn discard_all(&mut self) {

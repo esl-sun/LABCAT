@@ -71,7 +71,7 @@ where
         let sigma = surrogate.probe_variance(x)?.sqrt();
         let min = *surrogate
             .memory()
-            .min_y()
+            .y_min()
             .expect("Obeservations must not be empty!");
 
         let z = (min - mean - self.xi) / sigma;

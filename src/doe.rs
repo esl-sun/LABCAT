@@ -1,4 +1,4 @@
-use faer::{Col, Mat, MatRef};
+use faer::{Mat, MatRef};
 use rand::Rng;
 
 use crate::{bounds::UpperLowerBounds, dtype};
@@ -17,19 +17,23 @@ where
         self.DoE().col(id).try_as_col_major().unwrap().as_slice()
     }
     fn iter(&self) -> DoeIter<Self, T> {
-        DoeIter { doe: self.clone(), current_n: 0, dtype: std::marker::PhantomData }
+        DoeIter {
+            doe: self.clone(),
+            current_n: 0,
+            dtype: std::marker::PhantomData,
+        }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct DoeIter<D, T> 
+pub struct DoeIter<D, T>
 where
     D: DoE<T>,
     T: dtype,
 {
     doe: D,
     current_n: usize,
-    dtype: std::marker::PhantomData<T>
+    dtype: std::marker::PhantomData<T>,
 }
 
 // impl<D, T> DoeIter<D, T>
@@ -50,24 +54,28 @@ where
     type Item = Vec<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        
         if self.len() == 0 {
             return None;
         }
-        
-        let c = self.doe.DoE().col(self.current_n).try_as_col_major().unwrap().as_slice();
+
+        let c = self
+            .doe
+            .DoE()
+            .col(self.current_n)
+            .try_as_col_major()
+            .unwrap()
+            .as_slice();
         self.current_n += 1;
         Some(c.into())
     }
 }
 
-impl <D, T> ExactSizeIterator for DoeIter<D, T>
+impl<D, T> ExactSizeIterator for DoeIter<D, T>
 where
     D: DoE<T>,
     T: dtype,
 {
     fn len(&self) -> usize {
-        
         if self.current_n <= self.doe.DoE().ncols() {
             self.doe.DoE().ncols() - self.current_n
         } else {

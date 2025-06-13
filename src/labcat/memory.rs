@@ -101,6 +101,8 @@ where
     fn append_mult(&mut self, X: MatRef<T>, Y: &[T]) {
         self.base_mem.append_mult(X, Y);
         // todo!() //TODO: transform
+        // let X = &self.R_inv * &self.S_inv * (X - &self.X_offset);
+        // let Y = (*Y - self.y_offset) / self.y_scale;
     }
 }
 
@@ -125,15 +127,19 @@ impl<T: dtype + OrdSubset> ObservationMaxMin<T> for LabcatMemory<T> {}
 impl<T: dtype> ObservationVariance<T> for LabcatMemory<T> {}
 
 impl<T: dtype> ObservationTransform<T> for LabcatMemory<T> {
-    fn x_prime(&self) -> impl Fn(&[T]) -> &[T] {
-        // faer_core::col::from_slice(slice)
-        // |x| faer_core::col::from_slice(x).as_slice() //TODO: FIX
-        todo!();
-        |x| x
+    fn x_prime(&self) -> impl Fn(&[T]) -> Vec<T> {
+        |x| {
+            (self.R.as_ref() * self.S.as_ref() * faer::ColRef::from_slice(x) + &self.X_offset)
+                .try_as_col_major()
+                .unwrap()
+                .as_slice()
+                .into()
+        }
     }
 
     fn X_prime(&self) -> Mat<T> {
         let mut X_prime = self.R.as_ref() * self.S.as_ref() * self.base_mem.X().as_ref();
+        #[allow(unused_mut)]
         X_prime.as_mut().col_iter_mut().for_each(|col| {
             zip!(col, self.X_offset.as_ref()).for_each(|unzip!(mut col, off)| *col = *col + *off)
         });
@@ -167,6 +173,7 @@ impl<T: dtype> ObservationInputRecenter<T> for LabcatMemory<T> {
     fn recenter_X_with(&mut self, cen: &[T]) {
         let cen = faer::ColRef::from_slice(cen);
 
+        #[allow(unused_mut)]
         self.base_mem
             .X_mut()
             .as_mut()
@@ -186,10 +193,12 @@ impl<T: dtype> ObservationInputRescale<T> for LabcatMemory<T> {
 
         let l = faer::ColRef::from_slice(l);
 
+        #[allow(unused_mut)]
         self.base_mem.X_mut().col_iter_mut().for_each(|col| {
             zip!(col, l).for_each(|unzip!(mut col, l)| *col = (*col) / (*l));
         });
 
+        #[allow(unused_mut)]
         zip!(
             self.S.as_mut().diagonal_mut().column_vector_mut(),
             self.S_inv.as_mut().diagonal_mut().column_vector_mut(),
@@ -226,6 +235,7 @@ impl<T: dtype> ObservationInputRotate<T> for LabcatMemory<T> {
 
 impl<T: dtype> ObservationOutputRecenter<T> for LabcatMemory<T> {
     fn recenter_Y_with(&mut self, cen: &T) {
+        #[allow(unused_mut)]
         zip!(self.base_mem.Y.as_mut()).for_each(|unzip!(mut y)| *y = *y - *cen);
 
         self.y_offset = self.y_offset + self.y_scale.mul(*cen);

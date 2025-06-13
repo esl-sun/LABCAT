@@ -7,7 +7,6 @@ use anyhow::Result;
 
 use crate::kernel::BaseKernel;
 use crate::memory::{BaseMemory, ObservationDiscard, ObservationIO};
-use crate::utils::MatRefUtils;
 use crate::{dtype, Memory, Refit, RefitWith, SurrogateIO};
 
 #[derive(Debug, Clone)]

@@ -13,7 +13,7 @@
 use std::marker::PhantomData;
 
 use anyhow::Result; //TODO: Make crate Error types
-use faer_traits::ComplexField;
+use faer_traits::RealField;
 use memory::{BaseMemory, Memory, ObservationIO};
 use num_traits::{real::Real, FromPrimitive, ToPrimitive};
 
@@ -39,9 +39,13 @@ use doe::DoE;
 use ei::AcqFunction;
 use tune::SurrogateTuning;
 
-pub trait dtype: ComplexField<Unit = Self> + Real + FromPrimitive + ToPrimitive {}
+// pub trait dtype: ComplexField<Unit = Self> + Real + FromPrimitive + ToPrimitive {}
 
-impl<T> dtype for T where T: ComplexField<Unit = Self> + Real + FromPrimitive + ToPrimitive {}
+// impl<T> dtype for T where T: ComplexField<Unit = Self> + Real + FromPrimitive + ToPrimitive {}
+
+pub trait dtype: RealField+ Real + FromPrimitive + ToPrimitive {}
+
+impl<T> dtype for T where T: RealField + Real + FromPrimitive + ToPrimitive {}
 
 pub trait SurrogateIO<T>
 where
@@ -89,8 +93,10 @@ pub trait AskTell<T>
 where
     T: dtype,
 {
-    fn ask(&mut self) -> Vec<T>;
-    fn tell(&mut self, x: &[T], y: &T);
+    type Ask;
+    type Tell;
+    fn ask(&mut self) -> Self::Ask;
+    fn tell(&mut self, x: &[T], y: &T) -> Self::Tell;
 }
 
 #[derive(Debug, Clone)]
@@ -144,6 +150,9 @@ where
     H: SurrogateTuning<T, S>,
     A: AcqFunction<T, S>,
 {
+    type Ask = Vec<T>;
+    type Tell = ();
+    
     fn ask(&mut self) -> Vec<T> {
         if self.mem.n() < self.doe.n() {
             return self.doe.i(self.mem.n()).to_vec();
@@ -152,7 +161,7 @@ where
         todo!()
     }
 
-    fn tell(&mut self, _: &[T], _: &T) {
+    fn tell(&mut self, _: &[T], _: &T) -> () {
         todo!()
     }
 }
@@ -172,7 +181,7 @@ impl<T, F, O> Auto<T, F, O>
 where
     T: dtype,
     F: Fn(&[T]) -> T,
-    O: AskTell<T>,
+    O: AskTell<T, Ask = Vec<T>>,
 {
     pub fn new(opt: O, obj: F) -> Self {
         Self {

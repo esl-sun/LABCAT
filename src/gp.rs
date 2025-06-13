@@ -12,7 +12,7 @@ use faer::{unzip, zip, Col, ColRef, Mat, MatRef};
 use crate::kernel::{BaseKernel, BayesianKernel};
 use crate::memory::{ObservationIO, ObservationMean};
 // use crate::ndarray_utils::{Array1IntoFaerRowCol, Array2Utils, ArrayView2Utils, RowColIntoNdarray};
-use crate::utils::{MatMutUtils, MatRefUtils};
+use crate::utils::MatMutUtils;
 use crate::{
     dtype, kernel::Kernel, memory::Memory, BayesianSurrogateIO, Refit, RefitWith, SurrogateIO,
 };
@@ -31,6 +31,15 @@ where
     fn L(&self) -> MatRef<T>;
     fn alpha(&self) -> ColRef<T>;
     fn log_lik(&self) -> Option<T> {
+        
+        if self.alpha().nrows() == 0 {
+            return None
+        }
+
+        if self.memory().Y().len() != self.alpha().nrows() {
+            return None
+        }
+
         let y_mean = self.memory().Y_mean()?;
 
         Some(
@@ -50,6 +59,7 @@ where
     // fn chol_solve_inplace(&self, x: &mut Col<T>) -> Result<()>;
 }
 
+#[derive(Clone, Debug)]
 pub struct GP<T, K, M>
 where
     T: dtype,
@@ -122,6 +132,10 @@ where
     }
 
     fn probe(&self, x: &[T]) -> Option<T> {
+        if self.alpha.nrows() == 0 {
+            return None
+        }
+        
         Some(
             self.kernel.k_diag(self.memory().X().as_ref(), x) * self.alpha.as_ref()
                 + self.memory().Y_mean()?,
