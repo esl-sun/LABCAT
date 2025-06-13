@@ -39,7 +39,7 @@ where
             panic!("p and q should have the same shape!");
         }
 
-        let dif = &p - &q;
+        let dif = p - q;
 
         if dif.iter().all(|val| val.abs() <= T::one() / self.h) {
             // all within 1/h box

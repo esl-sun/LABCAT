@@ -5,10 +5,7 @@ use faer::{unzip, zip, Mat, MatMut, MatRef, Row};
 use ord_subset::{OrdSubset, OrdSubsetIterExt};
 
 use crate::utils::{Axis, RowRefUtils, Select};
-use crate::{
-    dtype,
-    utils::MatRefUtils,
-};
+use crate::{dtype, utils::MatRefUtils};
 
 pub trait Memory<T>
 where

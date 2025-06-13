@@ -3,17 +3,35 @@ use itertools::Itertools;
 use ord_subset::{OrdSubset, OrdSubsetIterExt};
 
 use crate::{
-    bounds::{Bounds, ContinuousBounds, UpperLowerBounds}, doe::{DoE, DoeIter, RandomSampling}, dtype, ei::{AcqFunction, EI}, gp::GP, kernel::{BayesianKernel, Kernel, ARD}, labcat::{memory::LabcatMemory, tune::LABCAT_GPTune}, lhs::LHS, memory::{
+    bounds::{Bounds, ContinuousBounds, UpperLowerBounds},
+    doe::{DoE, DoeIter, RandomSampling},
+    dtype,
+    ei::{AcqFunction, EI},
+    gp::GP,
+    kernel::{BayesianKernel, Kernel, ARD},
+    labcat::{memory::LabcatMemory, tune::LABCAT_GPTune},
+    lhs::LHS,
+    memory::{
         BaseMemory, Memory, ObservationIO, ObservationInputRecenter, ObservationInputRescale,
         ObservationInputRotate, ObservationOutputRecenter, ObservationOutputRescale,
         ObservationTransform,
-    }, sqexp::SqExpARD, tune::{SurrogateTuning, TuningStrategy}, AskTell, Refit, Surrogate, SurrogateIO
+    },
+    sqexp::SqExpARD,
+    tune::{SurrogateTuning, TuningStrategy},
+    AskTell, Refit, Surrogate, SurrogateIO,
 };
 
 pub mod memory;
 pub mod tune;
 
-pub type LABCAT<T> = GenericLABCAT::<T, GP<T, SqExpARD<T>, LabcatMemory<T>>, LABCAT_GPTune<T>, EI<T>, ContinuousBounds<T>, LHS<T>>;
+pub type LABCAT<T> = GenericLABCAT<
+    T,
+    GP<T, SqExpARD<T>, LabcatMemory<T>>,
+    LABCAT_GPTune<T>,
+    EI<T>,
+    ContinuousBounds<T>,
+    LHS<T>,
+>;
 
 #[derive(Debug, Clone)]
 pub struct GenericLABCAT<T, S, H, A, B, D>
@@ -84,14 +102,13 @@ where
 {
     type Ask = anyhow::Result<Vec<T>>;
     type Tell = anyhow::Result<()>;
-    
-    
+
     fn ask(&mut self) -> Self::Ask {
         if self.doe_iter.len() != 0 {
             return Ok(self
                 .doe_iter
                 .next()
-                .expect("Should always yield next input point!"))
+                .expect("Should always yield next input point!"));
         }
 
         let mut random_ei_pts = RandomSampling::default();
@@ -131,7 +148,11 @@ where
         if !self.init_flag {
             self.surrogate.memory_mut().reset_transform();
             self.surrogate.memory_mut().recenter_X();
-            let axis_lens = self.bounds.lb_ub().map(|(lb, ub)| ub.abs_sub(*lb)).collect_vec();
+            let axis_lens = self
+                .bounds
+                .lb_ub()
+                .map(|(lb, ub)| ub.abs_sub(*lb))
+                .collect_vec();
             self.surrogate.memory_mut().rescale_X_with(&axis_lens);
             self.init_flag = true;
         }
@@ -153,6 +174,7 @@ where
 
         // Rescale X
         self.surrogate.memory_mut().rescale_X_with(&l);
+        self.surrogate.kernel_mut().whiten_l();
 
         // Discard observations over rho * d
         // TODO: impl m parameter

@@ -43,7 +43,7 @@ use tune::SurrogateTuning;
 
 // impl<T> dtype for T where T: ComplexField<Unit = Self> + Real + FromPrimitive + ToPrimitive {}
 
-pub trait dtype: RealField+ Real + FromPrimitive + ToPrimitive {}
+pub trait dtype: RealField + Real + FromPrimitive + ToPrimitive {}
 
 impl<T> dtype for T where T: RealField + Real + FromPrimitive + ToPrimitive {}
 
@@ -152,7 +152,7 @@ where
 {
     type Ask = Vec<T>;
     type Tell = ();
-    
+
     fn ask(&mut self) -> Vec<T> {
         if self.mem.n() < self.doe.n() {
             return self.doe.i(self.mem.n()).to_vec();
@@ -161,7 +161,7 @@ where
         todo!()
     }
 
-    fn tell(&mut self, _: &[T], _: &T) -> () {
+    fn tell(&mut self, _: &[T], _: &T) {
         todo!()
     }
 }

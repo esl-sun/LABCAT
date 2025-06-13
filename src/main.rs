@@ -4,14 +4,12 @@ use faer::{Col, Mat, Row};
 
 use labcat::bounds::ContinuousBounds;
 use labcat::kernel::{BaseKernel, BayesianKernel, KernelSum, ARD};
-use labcat::labcat::LABCAT;
 use labcat::labcat::memory::LabcatMemory;
+use labcat::labcat::LABCAT;
 use labcat::memory::{BaseMemory, ObservationIO, ObservationMaxMin, ObservationTransform};
 use labcat::utils::{Axis, MatRefUtils, Select};
 use labcat::{gp::GP, kde::KDE, sqexp::SqExpARD};
-use labcat::{
-    kernel::Kernel, memory::Memory, AskTell, RefitWith, Surrogate, SurrogateIO,
-};
+use labcat::{kernel::Kernel, memory::Memory, AskTell, RefitWith, Surrogate, SurrogateIO};
 
 fn main() {
     let kern = SqExpARD::<f32>::new(5);

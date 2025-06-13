@@ -31,13 +31,12 @@ where
     fn L(&self) -> MatRef<T>;
     fn alpha(&self) -> ColRef<T>;
     fn log_lik(&self) -> Option<T> {
-        
         if self.alpha().nrows() == 0 {
-            return None
+            return None;
         }
 
         if self.memory().Y().len() != self.alpha().nrows() {
-            return None
+            return None;
         }
 
         let y_mean = self.memory().Y_mean()?;
@@ -133,9 +132,9 @@ where
 
     fn probe(&self, x: &[T]) -> Option<T> {
         if self.alpha.nrows() == 0 {
-            return None
+            return None;
         }
-        
+
         Some(
             self.kernel.k_diag(self.memory().X().as_ref(), x) * self.alpha.as_ref()
                 + self.memory().Y_mean()?,

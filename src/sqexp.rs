@@ -43,7 +43,7 @@ where
             panic!("p and q should have the same length!");
         }
 
-        let dif = &p - &q;
+        let dif = p - q;
         let exponent = T::half().neg() * (dif.transpose() * &dif) / self.l; // -0.5 * ...
                                                                             // let exponent = T::half();
         let val: T = self.sigma_f().powi(2) * exponent.exp();
@@ -143,8 +143,8 @@ where
             panic!("p and q should have the same shape!");
         }
 
-        let dif = &p - &q;
-        let exponent = T::half().neg() * (&dif.transpose() * &self.l_inv * &dif); // -0.5 * ...
+        let dif = p - q;
+        let exponent = T::half().neg() * (dif.transpose() * &self.l_inv * &dif); // -0.5 * ...
         let val: T = self.sigma_f().powi(2) * exponent.exp();
 
         match &p.eq(&q) {
@@ -178,7 +178,7 @@ where
             .for_each(|(old_l, new_l)| *old_l = *new_l);
 
         let l = self.l().to_owned();
-        
+
         #[allow(unused_mut)]
         zip!(
             self.l_inv.diagonal_mut().column_vector_mut(),

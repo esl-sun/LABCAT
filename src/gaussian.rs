@@ -37,7 +37,7 @@ where
             panic!("p and q should have the same shape!");
         }
 
-        let dif = &p - &q;
+        let dif = p - q;
         //TODO: .. / h^2 ?
         let exponent = T::neg(T::half()) * (dif.transpose() * &dif) / self.h; // -0.5 * ...
         let norm_factor = Real::recip(Real::sqrt(Real::powi(
