@@ -20,7 +20,7 @@ anyhow = "1.0.95"
 # nshare = { version = "0.9.0", features = ["nalgebra", "ndarray"] }
 num-traits = "0.2.15"
 simba = "0.9.0"
-egobox-doe = "0.29.0"
+egobox-doe = "0.29.1"
 linfa = "0.7.1"
 ord_subset = "3.1.1"
 # faer = {git = "https://github.com/aemiliusRetiarius/faer-rs", branch = "row-col-clone-debug-impls", features = ["nalgebra", "ndarray", "nightly"]}

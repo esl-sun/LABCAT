@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::{dtype, SurrogateIO};
+use crate::{dtype, gp::GPSurrogate, kernel::ARD, SurrogateIO};
 
 pub trait TuningStrategy<T, S>
 where
