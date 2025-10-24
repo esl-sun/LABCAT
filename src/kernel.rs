@@ -19,7 +19,14 @@ where
     Self: Sized,
     T: dtype,
 {
+    type Theta;
+
     fn new(d: usize) -> Self;
+    fn theta_value(&self, theta: Self::Theta) -> T;
+    fn theta_value_mut(&mut self, theta: Self::Theta) -> &mut T;
+
+    fn thetas(&self) -> impl Iterator<Item = Self::Theta>;
+
     fn k(&self, p: &[T], q: &[T]) -> T;
 
     fn k_diag(&self, X: MatRef<T>, x: &[T]) -> Row<T> {
@@ -85,6 +92,11 @@ where
     kernel_2: K2,
 }
 
+pub enum ThetaKernelSum<Theta1, Theta2> {
+    theta1(Theta1),
+    theta2(Theta2),
+}
+
 impl<T, K1, K2> Default for KernelSum<T, K1, K2>
 where
     T: dtype,
@@ -106,12 +118,39 @@ where
     K1: BaseKernel<T>,
     K2: BaseKernel<T>,
 {
+    type Theta = ThetaKernelSum<K1::Theta, K2::Theta>;
+
     fn new(d: usize) -> Self {
         KernelSum {
             data_type: PhantomData,
             kernel_1: BaseKernel::new(d),
             kernel_2: BaseKernel::new(d),
         }
+    }
+
+    fn theta_value(&self, theta: Self::Theta) -> T {
+        match theta {
+            ThetaKernelSum::theta1(theta) => self.kernel_1.theta_value(theta),
+            ThetaKernelSum::theta2(theta) => self.kernel_2.theta_value(theta),
+        }
+    }
+
+    fn theta_value_mut(&mut self, theta: Self::Theta) -> &mut T {
+        match theta {
+            ThetaKernelSum::theta1(theta) => self.kernel_1.theta_value_mut(theta),
+            ThetaKernelSum::theta2(theta) => self.kernel_2.theta_value_mut(theta),
+        }
+    }
+
+    fn thetas(&self) -> impl Iterator<Item = Self::Theta> {
+        self.kernel_1
+            .thetas()
+            .map(ThetaKernelSum::theta1)
+            .chain(
+                self.kernel_2
+                    .thetas()
+                    .map(ThetaKernelSum::theta2),
+            )
     }
 
     fn k(&self, p: &[T], q: &[T]) -> T {

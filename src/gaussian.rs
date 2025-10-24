@@ -18,12 +18,34 @@ where
     h: T,
 }
 
+pub enum ThetaSphericalGuassian {
+    h,
+}
+
 impl<T> BaseKernel<T> for SphericalGaussian<T>
 where
     T: dtype + RealField,
 {
+    type Theta = ThetaSphericalGuassian;
+
     fn new(dim: usize) -> Self {
         SphericalGaussian { dim, h: T::one() }
+    }
+
+    fn theta_value(&self, theta: Self::Theta) -> T {
+        match theta {
+            ThetaSphericalGuassian::h => self.h,
+        }
+    }
+
+    fn theta_value_mut(&mut self, theta: Self::Theta) -> &mut T {
+        match theta {
+            ThetaSphericalGuassian::h => &mut self.h,
+        }
+    }
+
+    fn thetas(&self) -> impl Iterator<Item = Self::Theta> {
+        std::iter::once(ThetaSphericalGuassian::h)
     }
 
     fn k(&self, p: &[T], q: &[T]) -> T {

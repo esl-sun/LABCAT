@@ -22,16 +22,46 @@ where
     l: T,
 }
 
+pub enum ThetaSqExp {
+    sigma_f,
+    sigma_n,
+    l,
+}
+
 impl<T> BaseKernel<T> for SqExp<T>
 where
     T: dtype + Real + Product + Div<Output = T> + 'static,
 {
+    type Theta = ThetaSqExp;
+
     fn new(_: usize) -> Self {
         SqExp {
             sigma_f: T::one(),
             sigma_n: T::zero(),
             l: T::one(),
         }
+    }
+
+    fn theta_value(&self, theta: Self::Theta) -> T {
+        match theta {
+            ThetaSqExp::sigma_f => self.sigma_f,
+            ThetaSqExp::sigma_n => self.sigma_n,
+            ThetaSqExp::l => self.l,
+        }
+    }
+
+    fn theta_value_mut(&mut self, theta: Self::Theta) -> &mut T {
+        match theta {
+            ThetaSqExp::sigma_f => &mut self.sigma_f,
+            ThetaSqExp::sigma_n => &mut self.sigma_n,
+            ThetaSqExp::l => &mut self.l,
+        }
+    }
+
+    fn thetas(&self) -> impl Iterator<Item = Self::Theta> {
+        std::iter::once(ThetaSqExp::sigma_f)
+            .chain(std::iter::once(ThetaSqExp::sigma_n))
+            .chain(std::iter::once(ThetaSqExp::l))
     }
 
     fn k(&self, p: &[T], q: &[T]) -> T {
@@ -118,10 +148,18 @@ where
     l_inv: Mat<T>,
 }
 
+pub enum ThetaSqExpARD {
+    sigma_f,
+    sigma_n,
+    l(usize),
+}
+
 impl<T> BaseKernel<T> for SqExpARD<T>
 where
     T: dtype + Real + Product + 'static,
 {
+    type Theta = ThetaSqExpARD;
+
     fn new(d: usize) -> Self {
         SqExpARD {
             dim: d,
@@ -130,6 +168,28 @@ where
             l: vec![T::one(); d],
             l_inv: Mat::identity(d, d),
         }
+    }
+
+    fn theta_value(&self, theta: Self::Theta) -> T {
+        match theta {
+            ThetaSqExpARD::sigma_f => self.sigma_f,
+            ThetaSqExpARD::sigma_n => self.sigma_n,
+            ThetaSqExpARD::l(idx) => self.l[idx],
+        }
+    }
+
+    fn theta_value_mut(&mut self, theta: Self::Theta) -> &mut T {
+        match theta {
+            ThetaSqExpARD::sigma_f => &mut self.sigma_f,
+            ThetaSqExpARD::sigma_n => &mut self.sigma_n,
+            ThetaSqExpARD::l(idx) => &mut self.l[idx],
+        }
+    }
+
+    fn thetas(&self) -> impl Iterator<Item = Self::Theta> {
+        std::iter::once(ThetaSqExpARD::sigma_f)
+            .chain(std::iter::once(ThetaSqExpARD::sigma_n))
+            .chain((0..self.dim).map(ThetaSqExpARD::l))
     }
 
     fn k(&self, p: &[T], q: &[T]) -> T {

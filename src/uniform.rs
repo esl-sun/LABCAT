@@ -16,15 +16,37 @@ where
     h: T,
 }
 
+pub enum ThetaUniform {
+    h,
+}
+
 impl<T> BaseKernel<T> for Uniform<T>
 where
     T: dtype,
 {
+    type Theta = ThetaUniform;
+
     fn new(d: usize) -> Self {
         Uniform {
             dim: d,
             h: T::one(),
         }
+    }
+
+    fn theta_value(&self, theta: Self::Theta) -> T {
+        match theta {
+            ThetaUniform::h => self.h,
+        }
+    }
+
+    fn theta_value_mut(&mut self, theta: Self::Theta) -> &mut T {
+        match theta {
+            ThetaUniform::h => &mut self.h,
+        }
+    }
+
+    fn thetas(&self) -> impl Iterator<Item = Self::Theta> {
+        std::iter::once(ThetaUniform::h)
     }
 
     //TODO: Check normalization
