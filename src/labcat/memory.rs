@@ -75,11 +75,11 @@ where
         self.base_mem.i(i)
     }
 
-    fn X(&self) -> MatRef<T> {
+    fn X(&self) -> MatRef<'_, T> {
         self.base_mem.X()
     }
 
-    fn X_mut(&mut self) -> MatMut<T> {
+    fn X_mut(&mut self) -> MatMut<'_, T> {
         self.base_mem.X_mut()
     }
 

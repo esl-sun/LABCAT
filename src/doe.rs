@@ -9,7 +9,7 @@ where
     T: dtype,
 {
     fn build_DoE<B: UpperLowerBounds<T>>(&mut self, n: usize, bounds: &B);
-    fn DoE(&self) -> MatRef<T>;
+    fn DoE(&self) -> MatRef<'_, T>;
     fn n(&self) -> usize {
         self.DoE().ncols()
     }
@@ -118,7 +118,7 @@ where
             })
     }
 
-    fn DoE(&self) -> MatRef<T> {
+    fn DoE(&self) -> MatRef<'_, T> {
         self.doe.as_ref()
     }
 }

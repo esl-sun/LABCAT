@@ -82,8 +82,9 @@ where
         + GPSurrogate<T, KernType: ARD<T> + BayesianKernel<T>, MemType: ObservationVariance<T>>,
 {
     fn tune(&self, sur: &mut S) -> Result<()> {
-
-        let base_log_lik = sur.log_lik().ok_or_else(|| anyhow!("Failed to calculate marginal log likelihood!"))?;
+        let base_log_lik = sur
+            .log_lik()
+            .ok_or_else(|| anyhow!("Failed to calculate marginal log likelihood!"))?;
         let base_kernel = sur.kernel().clone();
 
         *sur.kernel_mut().sigma_f_mut() = sur.memory().Y_std(T::zero());
@@ -98,16 +99,20 @@ where
             .map_err(|_| {
                 anyhow!("Failed to calculate marginal log likelihood Hessian eigenvalues!")
             })?; // TODO: Assumes hessian is symmetric
-        
+
         if eigs.into_iter().all(|eig| eig < T::zero()) {
-            let delta = hess.llt(faer::Side::Lower)?.inverse() * jac;        
+            let delta = hess.llt(faer::Side::Lower)?.inverse() * jac;
             ARDBacktrackingLineSearch::new(delta, T::half(), 5).tune(sur)?;
         } else {
             ARDBacktrackingLineSearch::new(jac, T::one().powi(-1), 5).tune(sur)?;
         }
 
         // No improvement to log marginal likelihood, revert kernel thetas
-        if base_log_lik > sur.log_lik().ok_or_else(|| anyhow!("Failed to calculate marginal log likelihood!"))? {
+        if base_log_lik
+            > sur
+                .log_lik()
+                .ok_or_else(|| anyhow!("Failed to calculate marginal log likelihood!"))?
+        {
             *sur.kernel_mut() = base_kernel;
             sur.refit()?
         }
@@ -126,12 +131,16 @@ where
     step_n: usize,
 }
 
-impl<T> ARDBacktrackingLineSearch<T> 
+impl<T> ARDBacktrackingLineSearch<T>
 where
-    T: dtype
+    T: dtype,
 {
     pub fn new(delta: faer::Col<T>, base: T, n: usize) -> Self {
-        Self { step_delta: delta, base_factor: base, step_n: n }
+        Self {
+            step_delta: delta,
+            base_factor: base,
+            step_n: n,
+        }
     }
 }
 
@@ -150,7 +159,7 @@ where
             });
             sur.kernel_mut()
                 .update_l(new_l.try_as_col_major().unwrap().as_slice());
-            
+
             sur.refit()?;
 
             if sur.log_lik().unwrap() > base_lik {

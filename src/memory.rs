@@ -24,8 +24,8 @@ where
     fn new(d: usize) -> Self;
     fn dim(&self) -> usize;
     fn n(&self) -> usize;
-    fn X(&self) -> MatRef<T>;
-    fn X_mut(&mut self) -> MatMut<T>;
+    fn X(&self) -> MatRef<'_, T>;
+    fn X_mut(&mut self) -> MatMut<'_, T>;
     fn Y(&self) -> &[T];
     fn Y_mut(&mut self) -> &mut [T];
     fn append(&mut self, x: &[T], y: &T);
@@ -464,11 +464,11 @@ where
         self.X.ncols()
     }
 
-    fn X(&self) -> MatRef<T> {
+    fn X(&self) -> MatRef<'_, T> {
         self.X.as_ref()
     }
 
-    fn X_mut(&mut self) -> MatMut<T> {
+    fn X_mut(&mut self) -> MatMut<'_, T> {
         self.X.as_mut()
     }
 

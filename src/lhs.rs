@@ -53,7 +53,7 @@ where
         };
     }
 
-    fn DoE(&self) -> MatRef<T> {
+    fn DoE(&self) -> MatRef<'_, T> {
         self.doe.as_ref()
     }
 }

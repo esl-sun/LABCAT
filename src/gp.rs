@@ -26,10 +26,10 @@ pub trait GPSurrogate<T>:
 where
     T: dtype,
 {
-    fn K(&self) -> MatRef<T>;
-    fn K_inv(&self) -> MatRef<T>;
-    fn L(&self) -> MatRef<T>;
-    fn alpha(&self) -> ColRef<T>;
+    fn K(&self) -> MatRef<'_, T>;
+    fn K_inv(&self) -> MatRef<'_, T>;
+    fn L(&self) -> MatRef<'_, T>;
+    fn alpha(&self) -> ColRef<'_, T>;
     fn log_lik(&self) -> Option<T> {
         if self.alpha().nrows() == 0 {
             return None;
@@ -93,19 +93,19 @@ where
     K: BaseKernel<T>,
     M: ObservationIO<T> + ObservationMean<T>,
 {
-    fn K(&self) -> MatRef<T> {
+    fn K(&self) -> MatRef<'_, T> {
         self.K.as_ref()
     }
 
-    fn K_inv(&self) -> MatRef<T> {
+    fn K_inv(&self) -> MatRef<'_, T> {
         self.Kinv.as_ref()
     }
 
-    fn L(&self) -> MatRef<T> {
+    fn L(&self) -> MatRef<'_, T> {
         self.L.L()
     }
 
-    fn alpha(&self) -> ColRef<T> {
+    fn alpha(&self) -> ColRef<'_, T> {
         self.alpha.as_ref()
     }
 }
